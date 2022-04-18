@@ -13,7 +13,6 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   zone                  = var.availability_zone == "alternate" ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
 
   provision_vm_agent = true
-  timezone           = var.timezone
 
   #checkov:skip=CKV_AZURE_151:Ensure Virtual Machine extensions are not installed
   encryption_at_host_enabled = false

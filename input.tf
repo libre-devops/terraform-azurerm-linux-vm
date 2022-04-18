@@ -85,12 +85,6 @@ variable "spot_instance" {
   default     = false
 }
 
-variable "timezone" {
-  default     = "GMT Standard Time"
-  description = "The timezone for your VM to be deployed with"
-  type        = string
-}
-
 variable "availability_zone" {
   default     = null
   description = "The availability zone for the VMs to be created to"
