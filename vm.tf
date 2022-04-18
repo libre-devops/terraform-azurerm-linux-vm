@@ -1,26 +1,3 @@
-resource "azurerm_network_interface" "nic" {
-  count = var.vm_amount
-
-  name                = "nic-${var.vm_hostname}${format("%02d", count.index + 1)}"
-  resource_group_name = var.rg_name
-  location            = var.location
-
-  enable_accelerated_networking = var.enable_accelerated_networking
-
-  ip_configuration {
-    name                          = "nic-ipconfig-${var.vm_hostname}${format("%02d", count.index + 1)}"
-    primary                       = true
-    private_ip_address_allocation = "Dynamic"
-    subnet_id                     = var.subnet_id
-  }
-  tags = var.tags
-
-  timeouts {
-    create = "5m"
-    delete = "10m"
-  }
-}
-
 resource "azurerm_linux_virtual_machine" "linux_vm" {
 
   count                    = var.vm_amount
