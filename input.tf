@@ -194,6 +194,7 @@ variable "enable_accelerated_networking" {
   description = "(Optional) Enable accelerated networking on Network interface."
   default     = false
 }
+
 variable "identity_type" {
   description = "The Managed Service Identity Type of this Virtual Machine."
   type        = string
