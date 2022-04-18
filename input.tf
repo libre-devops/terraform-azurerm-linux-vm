@@ -30,7 +30,7 @@ variable "license_type" {
 
 variable "ssh_public_key" {
   description = "The public key to be added to the admin username"
-  type = string
+  type        = string
 }
 
 variable "static_private_ip" {

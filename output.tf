@@ -4,7 +4,8 @@ output "vm_ids" {
 }
 
 output "vm_name" {
-  value = azurerm_linux_virtual_machine.linux_vm.*.name
+  description = "The name of the VM"
+  value       = azurerm_linux_virtual_machine.linux_vm.*.name
 }
 
 output "vm_zones" {

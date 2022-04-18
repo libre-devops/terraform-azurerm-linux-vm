@@ -1,19 +1,19 @@
 resource "azurerm_linux_virtual_machine" "linux_vm" {
 
-  count                    = var.vm_amount
-  name                     = "${var.vm_hostname}${format("%02d", count.index + 1)}"
-  resource_group_name      = var.rg_name
-  location                 = var.location
-  network_interface_ids    = [azurerm_network_interface.nic[count.index].id]
-  license_type             = var.license_type
-  computer_name            = var.vm_hostname
-  admin_username           = var.admin_username
-  admin_password           = var.admin_password
-  size                     = var.vm_size
-  zone                     = var.availability_zone == "alternate" ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
+  count                 = var.vm_amount
+  name                  = "${var.vm_hostname}${format("%02d", count.index + 1)}"
+  resource_group_name   = var.rg_name
+  location              = var.location
+  network_interface_ids = [azurerm_network_interface.nic[count.index].id]
+  license_type          = var.license_type
+  computer_name         = var.vm_hostname
+  admin_username        = var.admin_username
+  admin_password        = var.admin_password
+  size                  = var.vm_size
+  zone                  = var.availability_zone == "alternate" ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
 
-  provision_vm_agent         = true
-  timezone                   = var.timezone
+  provision_vm_agent = true
+  timezone           = var.timezone
 
   #checkov:skip=CKV_AZURE_151:Ensure Virtual Machine extensions are not installed
   encryption_at_host_enabled = false
