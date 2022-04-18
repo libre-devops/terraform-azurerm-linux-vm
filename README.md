@@ -8,7 +8,7 @@ module "lnx_vm" {
   rg_name  = module.rg.rg_name
   location = module.rg.rg_location
 
-  vm_amount          = local.vm_amount
+  vm_amount          = 1
   vm_hostname        = "lnx${var.short}${var.loc}${terraform.workspace}"
   vm_size            = "Standard_B2ms"
   vm_os_simple       = "Ubuntu20.04"
