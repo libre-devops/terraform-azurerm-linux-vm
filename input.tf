@@ -177,6 +177,24 @@ variable "tags" {
   }
 }
 
+variable "provision_vm_agent" {
+  description = "Whether the Azure agent is installed on this VM, default is true"
+  type        = bool
+  default     = true
+}
+
+variable "enable_encryption_at_host" {
+  description = "Whether host encryption is enabled"
+  type        = bool
+  default     = false
+}
+
+variable "allow_extension_operations" {
+  description = "Whether extensions are allowed to execute on the VM"
+  type        = bool
+  default     = true
+}
+
 variable "allocation_method" {
   description = "Defines how an IP address is assigned. Options are Static or Dynamic."
   type        = string

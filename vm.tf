@@ -12,13 +12,12 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   size                  = var.vm_size
   zone                  = var.availability_zone == "alternate" ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
 
-  provision_vm_agent = true
-
-  #checkov:skip=CKV_AZURE_151:Ensure Virtual Machine extensions are not installed
-  encryption_at_host_enabled = false
+  #checkov:skip=CKV_AZURE_151:Ensure Encryption at host is enabled
+  encryption_at_host_enabled = var.enable_encryption_at_host
 
   #checkov:skip=CKV_AZURE_50:Ensure Virtual Machine extensions are not installed
-  allow_extension_operations = true
+  allow_extension_operations = var.allow_extension_operations
+  provision_vm_agent         = var.provision_vm_agent
 
   dynamic "plan" {
     for_each = toset(var.vm_plan != null ? ["fake"] : [])
