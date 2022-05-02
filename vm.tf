@@ -6,7 +6,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   location              = var.location
   network_interface_ids = [azurerm_network_interface.nic[count.index].id]
   license_type          = var.license_type
-  computer_name         = var.vm_hostname
+  computer_name         = "${var.vm_hostname}${format("%02d", count.index + 1)}"
   admin_username        = var.admin_username
   admin_password        = var.admin_password
   size                  = var.vm_size
