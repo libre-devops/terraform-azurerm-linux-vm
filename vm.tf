@@ -1,5 +1,11 @@
 resource "azurerm_linux_virtual_machine" "linux_vm" {
 
+  // Forces acceptance of marketplace terms before creating a VM
+  depends_on = [
+    azurerm_marketplace_agreement.plan_acceptance_simple,
+    azurerm_marketplace_agreement.plan_acceptance_custom
+  ]
+
   count                 = var.vm_amount
   name                  = "${var.vm_hostname}${format("%02d", count.index + 1)}"
   resource_group_name   = var.rg_name
