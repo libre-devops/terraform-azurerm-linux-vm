@@ -2,7 +2,7 @@
 This module follows the KISS design pattern compared to other modules in the market.  It does not try to do anything crazy and consider availability sets, scale sets etc, this will create you a VM based on some parameters you give it, nothing more, nothing less
 
 ```hcl
-module "lnx_vm" {
+module "lnx_vm_simple" {
   source = "registry.terraform.io/libre-devops/linux-vm/azurerm"
 
   rg_name  = module.rg.rg_name
@@ -14,7 +14,7 @@ module "lnx_vm" {
   vm_os_simple       = "Ubuntu20.04"
   vm_os_disk_size_gb = "127"
 
-  asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
+  asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm_simple.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
 
   admin_username = "LibreDevOpsAdmin"
   admin_password = data.azurerm_key_vault_secret.mgmt_local_admin_pwd.value
@@ -27,6 +27,115 @@ module "lnx_vm" {
 
   tags = module.rg.rg_tags
 }
+
+// Want to use this module without the SKU calculator? Try something like this:
+module "lnx_vm_with_custom_image" {
+  source = "registry.terraform.io/libre-devops/linux-vm/azurerm"
+
+  rg_name  = module.rg.rg_name
+  location = module.rg.rg_location
+  tags     = module.rg.rg_tags
+
+  vm_amount   = 1
+  vm_hostname = "vm${var.short}${var.loc}${terraform.workspace}" // vmldoeuwdev01
+  vm_size     = "Standard_B2ms"
+
+  use_simple_image = false
+  source_image_reference = {
+    publisher = "Oracle"
+    offer     = "Oracle-Linux"
+    sku       = "ol82"
+    version   = "latest"
+  }
+
+  vm_os_disk_size_gb = "127"
+
+  asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm_with_custom_image.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
+
+  admin_username = "LibreDevOpsAdmin"
+  admin_password = data.azurerm_key_vault_secret.mgmt_local_admin_pwd.value
+  ssh_public_key = data.azurerm_ssh_public_key.mgmt_ssh_key.public_key
+
+  subnet_id            = element(values(module.network.subnets_ids), 0) // Places in sn1-vnet-ldo-euw-dev-01
+  availability_zone    = "alternate"                                    // If more than 1 VM exists, places them in alterate zones, 1, 2, 3 then resetting.  If you want HA, use an availability set.
+  storage_account_type = "Standard_LRS"
+  identity_type        = "UserAssigned"
+  identity_ids         = [data.azurerm_user_assigned_identity.mgmt_user_assigned_id.id]
+}
+
+// Sometimes you may want an image like the CIS images, these are part of a plan rather than the platform images.  You can use the ""registry.terraform.io/libre-devops/windows-os-plan-with-plan-calculator/azurerm""
+module "lnx_vm_with_plan" {
+  source = "registry.terraform.io/libre-devops/linux-vm/azurerm"
+
+  rg_name  = module.rg.rg_name
+  location = module.rg.rg_location
+  tags     = module.rg.rg_tags
+
+  vm_amount   = 1
+  vm_hostname = "jmp${var.short}${var.loc}${terraform.workspace}" // vmldoeuwdev01
+  vm_size     = "Standard_B2ms"
+
+  use_simple_image_with_plan = true
+  vm_os_simple               = "CISDebian10L1"
+
+  vm_os_disk_size_gb = "127"
+
+  asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm_with_plan.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
+
+  admin_username = "LibreDevOpsAdmin"
+  admin_password = data.azurerm_key_vault_secret.mgmt_local_admin_pwd.value
+  ssh_public_key = data.azurerm_ssh_public_key.mgmt_ssh_key.public_key
+
+  subnet_id            = element(values(module.network.subnets_ids), 0) // Places in sn1-vnet-ldo-euw-dev-01
+  availability_zone    = "alternate"                                    // If more than 1 VM exists, places them in alterate zones, 1, 2, 3 then resetting.  If you want HA, use an availability set.
+  storage_account_type = "Standard_LRS"
+  identity_type        = "UserAssigned"
+  identity_ids         = [data.azurerm_user_assigned_identity.mgmt_user_assigned_id.id]
+}
+
+// Don't want to use either? No problem.  Try this:
+module "lnx_vm_with_custom_plan" {
+  source = "registry.terraform.io/libre-devops/linux-vm/azurerm"
+
+  rg_name  = module.rg.rg_name
+  location = module.rg.rg_location
+  tags     = module.rg.rg_tags
+
+  vm_amount   = 1
+  vm_hostname = "app${var.short}${var.loc}${terraform.workspace}" // appldoeuwdev01
+  vm_size     = "Standard_B2ms"
+
+  use_simple_image           = false
+  use_simple_image_with_plan = false
+
+  source_image_reference = {
+    publisher = "center-for-internet-security-inc"
+    offer     = "cis-centos-7-v2-1-1-l1"
+    sku       = "cis-centos7-l1"
+    version   = "latest"
+  }
+
+  plan = {
+    name      = "cis-centos7-l1"
+    product   = "cis-centos-7-v2-1-1-l1"
+    publisher = "center-for-internet-security-inc"
+  }
+
+  vm_os_disk_size_gb = "127"
+
+  asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm_with_custom_plan.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
+
+  admin_username = "LibreDevOpsAdmin"
+  admin_password = data.azurerm_key_vault_secret.mgmt_local_admin_pwd.value
+  ssh_public_key = data.azurerm_ssh_public_key.mgmt_ssh_key.public_key
+
+  subnet_id            = element(values(module.network.subnets_ids), 0) // Places in sn1-vnet-ldo-euw-dev-01
+  availability_zone    = "alternate"                                    // If more than 1 VM exists, places them in alterate zones, 1, 2, 3 then resetting.  If you want HA, use an availability set.
+  storage_account_type = "Standard_LRS"
+  identity_type        = "UserAssigned"
+  identity_ids         = [data.azurerm_user_assigned_identity.mgmt_user_assigned_id.id]
+}
+
 ```
 
 For a full example build, check out the [Libre DevOps Website](https://www.libredevops.org/quickstart/utils/terraform/using-lbdo-tf-modules-example.html)
@@ -45,7 +154,8 @@ No requirements.
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_os_calculator"></a> [os\_calculator](#module\_os\_calculator) | registry.terraform.io/libre-devops/lnx-os-sku-calculator/azurerm | n/a |
+| <a name="module_os_calculator"></a> [os\_calculator](#module\_os\_calculator) | registry.terraform.io/libre-devops/linux-os-sku-calculator/azurerm | n/a |
+| <a name="module_os_calculator_with_plan"></a> [os\_calculator\_with\_plan](#module\_os\_calculator\_with\_plan) | registry.terraform.io/libre-devops/linux-os-sku-with-plan-calculator/azurerm | n/a |
 
 ## Resources
 
@@ -53,6 +163,8 @@ No requirements.
 |------|------|
 | [azurerm_application_security_group.asg](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_security_group) | resource |
 | [azurerm_linux_virtual_machine.linux_vm](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine) | resource |
+| [azurerm_marketplace_agreement.plan_acceptance_custom](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/marketplace_agreement) | resource |
+| [azurerm_marketplace_agreement.plan_acceptance_simple](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/marketplace_agreement) | resource |
 | [azurerm_network_interface.nic](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_interface) | resource |
 | [azurerm_network_interface_application_security_group_association.asg_association](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_interface_application_security_group_association) | resource |
 | [azurerm_public_ip.pip](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/public_ip) | resource |
@@ -72,14 +184,15 @@ No requirements.
 | <a name="input_enable_encryption_at_host"></a> [enable\_encryption\_at\_host](#input\_enable\_encryption\_at\_host) | Whether host encryption is enabled | `bool` | `false` | no |
 | <a name="input_identity_ids"></a> [identity\_ids](#input\_identity\_ids) | Specifies a list of user managed identity ids to be assigned to the VM. | `list(string)` | `[]` | no |
 | <a name="input_identity_type"></a> [identity\_type](#input\_identity\_type) | The Managed Service Identity Type of this Virtual Machine. | `string` | `""` | no |
-| <a name="input_is_custom_image"></a> [is\_custom\_image](#input\_is\_custom\_image) | Boolean flag to notify when the custom image is used. | `bool` | `false` | no |
 | <a name="input_license_type"></a> [license\_type](#input\_license\_type) | Specifies the BYOL Type for this Virtual Machine. This is only applicable to Windows Virtual Machines. Possible values are Windows\_Client and Windows\_Server | `string` | `null` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location for this resource to be put in | `string` | n/a | yes |
 | <a name="input_pip_custom_dns_label"></a> [pip\_custom\_dns\_label](#input\_pip\_custom\_dns\_label) | If you are using a public IP and wish to assign a custom DNS label, set here, otherwise, the VM host name will be used | `any` | `null` | no |
 | <a name="input_pip_name"></a> [pip\_name](#input\_pip\_name) | If you are using a Public IP, set the name in this variable | `string` | `null` | no |
+| <a name="input_plan"></a> [plan](#input\_plan) | When a plan VM is used with a image not in the calculator, this will contain the variables used | `map(any)` | `{}` | no |
 | <a name="input_provision_vm_agent"></a> [provision\_vm\_agent](#input\_provision\_vm\_agent) | Whether the Azure agent is installed on this VM, default is true | `bool` | `true` | no |
 | <a name="input_public_ip_sku"></a> [public\_ip\_sku](#input\_public\_ip\_sku) | If you wish to assign a public IP directly to your nic, set this to Standard | `string` | `null` | no |
 | <a name="input_rg_name"></a> [rg\_name](#input\_rg\_name) | The name of the resource group, this module does not create a resource group, it is expecting the value of a resource group already exists | `string` | n/a | yes |
+| <a name="input_source_image_reference"></a> [source\_image\_reference](#input\_source\_image\_reference) | Whether the module should use the a custom image | `map(any)` | `{}` | no |
 | <a name="input_spot_instance"></a> [spot\_instance](#input\_spot\_instance) | Whether the VM is a spot instance or not | `bool` | `false` | no |
 | <a name="input_spot_instance_eviction_policy"></a> [spot\_instance\_eviction\_policy](#input\_spot\_instance\_eviction\_policy) | The eviction policy for a spot instance | `string` | `null` | no |
 | <a name="input_spot_instance_max_bid_price"></a> [spot\_instance\_max\_bid\_price](#input\_spot\_instance\_max\_bid\_price) | The max bid price for a spot instance | `string` | `null` | no |
@@ -88,6 +201,8 @@ No requirements.
 | <a name="input_storage_account_type"></a> [storage\_account\_type](#input\_storage\_account\_type) | Defines the type of storage account to be created. Valid options are Standard\_LRS, Standard\_ZRS, Standard\_GRS, Standard\_RAGRS, Premium\_LRS. | `string` | `"Standard_LRS"` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | The subnet ID for the NICs which are created with the VMs to be added to | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | A map of the tags to use on the resources that are deployed with this module. | `map(string)` | <pre>{<br>  "source": "terraform"<br>}</pre> | no |
+| <a name="input_use_simple_image"></a> [use\_simple\_image](#input\_use\_simple\_image) | Whether the module should use the simple OS calculator module, default is true | `bool` | `true` | no |
+| <a name="input_use_simple_image_with_plan"></a> [use\_simple\_image\_with\_plan](#input\_use\_simple\_image\_with\_plan) | If you are using the Windows OS Sku Calculator with plan, set this to true. Default is false | `bool` | `false` | no |
 | <a name="input_vm_amount"></a> [vm\_amount](#input\_vm\_amount) | A number, with the amount of VMs which is expected to be created | `number` | n/a | yes |
 | <a name="input_vm_hostname"></a> [vm\_hostname](#input\_vm\_hostname) | The hostname of the vm | `string` | n/a | yes |
 | <a name="input_vm_os_disk_size_gb"></a> [vm\_os\_disk\_size\_gb](#input\_vm\_os\_disk\_size\_gb) | The size of the OS Disk in GiB | `string` | `"127"` | no |
