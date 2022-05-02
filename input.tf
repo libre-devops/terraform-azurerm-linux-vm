@@ -63,12 +63,6 @@ variable "identity_type" {
   default     = ""
 }
 
-variable "is_custom_image" {
-  description = "Boolean flag to notify when the custom image is used."
-  type        = bool
-  default     = false
-}
-
 variable "license_type" {
   description = "Specifies the BYOL Type for this Virtual Machine. This is only applicable to Windows Virtual Machines. Possible values are Windows_Client and Windows_Server"
   type        = string
@@ -91,6 +85,12 @@ variable "pip_name" {
   type        = string
 }
 
+variable "plan" {
+  description = "When a plan VM is used with a image not in the calculator, this will contain the variables used"
+  type        = map(any)
+  default     = {}
+}
+
 variable "provision_vm_agent" {
   description = "Whether the Azure agent is installed on this VM, default is true"
   type        = bool
@@ -110,6 +110,12 @@ variable "rg_name" {
     condition     = length(var.rg_name) > 1 && length(var.rg_name) <= 24
     error_message = "Resource group name is not valid."
   }
+}
+
+variable "source_image_reference" {
+  default     = {}
+  description = "Whether the module should use the a custom image"
+  type        = map(any)
 }
 
 variable "spot_instance" {
@@ -159,6 +165,18 @@ variable "tags" {
   default = {
     source = "terraform"
   }
+}
+
+variable "use_simple_image" {
+  default     = true
+  description = "Whether the module should use the simple OS calculator module, default is true"
+  type        = bool
+}
+
+variable "use_simple_image_with_plan" {
+  default     = false
+  description = "If you are using the Windows OS Sku Calculator with plan, set this to true. Default is false"
+  type        = bool
 }
 
 variable "vm_amount" {
