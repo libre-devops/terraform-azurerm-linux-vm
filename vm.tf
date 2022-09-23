@@ -38,7 +38,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
 
   // Uses your own source image
   dynamic "source_image_reference" {
-    for_each = try(var.use_simple_image, null) == false && try(var.use_simple_image_with_plan, null) == false && length(var.source_image_reference) > 0 && length(var.plan) == 0 && var.use_custom_image == false ? [1] : []
+    for_each = try(var.use_simple_image, null) == false && try(var.use_simple_image_with_plan, null) == false && length(var.source_image_reference) > 0 && length(var.plan) == 0 && try(var.use_custom_image, null) == false ? [1] : []
     content {
       publisher = lookup(var.source_image_reference, "publisher", null)
       offer     = lookup(var.source_image_reference, "offer", null)
@@ -145,7 +145,7 @@ module "os_calculator_with_plan" {
 
 // Use these modules and accept these terms at your own peril
 resource "azurerm_marketplace_agreement" "plan_acceptance_simple" {
-  count = try(var.use_simple_image_with_plan, null) == true && try(var.accept_plan, null) == true && var.use_custom_image == false ? 1 : 0
+  count = try(var.use_simple_image_with_plan, null) == true && try(var.accept_plan, null) == true && try(var.use_custom_image, null) == false ? 1 : 0
 
   publisher = coalesce(var.vm_os_publisher, module.os_calculator_with_plan[0].calculated_value_os_publisher)
   offer     = coalesce(var.vm_os_offer, module.os_calculator_with_plan[0].calculated_value_os_offer)
