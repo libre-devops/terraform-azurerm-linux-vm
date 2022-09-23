@@ -117,7 +117,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   }
 
   boot_diagnostics {
-    storage_account_uri = null // Use managed storage account
+    storage_account_uri = {} // Use managed storage account
   }
 
   priority        = var.spot_instance ? "Spot" : "Regular"
