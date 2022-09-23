@@ -27,7 +27,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
 
   // Uses calculator
   dynamic "source_image_reference" {
-    for_each = try(var.use_simple_image, null) == true && try(var.use_simple_image_with_plan, null) == false && var.use_custom_image == false ? [1] : []
+    for_each = try(var.use_simple_image, null) == true && try(var.use_simple_image_with_plan, null) == false && try(var.use_custom_image, null) == false ? [1] : []
     content {
       publisher = var.vm_os_id == "" ? coalesce(var.vm_os_publisher, module.os_calculator[0].calculated_value_os_publisher) : ""
       offer     = var.vm_os_id == "" ? coalesce(var.vm_os_offer, module.os_calculator[0].calculated_value_os_offer) : ""
