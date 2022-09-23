@@ -1,3 +1,9 @@
+variable "accept_plan" {
+  description = "Defines whether a plan should be accepted or not"
+  type        = bool
+  default     = true
+}
+
 variable "admin_password" {
   description = "The admin password to be used on the VMSS that will be deployed. The password must meet the complexity requirements of Azure."
   type        = string
@@ -31,6 +37,12 @@ variable "availability_zone" {
   default     = null
   description = "The availability zone for the VMs to be created to"
   type        = string
+}
+
+variable "custom_source_image_id" {
+  description = "The ID of a custom source image, if used"
+  type        = string
+  default     = null
 }
 
 variable "data_disk_size_gb" {
@@ -165,6 +177,12 @@ variable "tags" {
   default = {
     source = "terraform"
   }
+}
+
+variable "use_custom_image" {
+  description = "If you want to use a custom image, this must be set to true"
+  type        = bool
+  default     = false
 }
 
 variable "use_simple_image" {
