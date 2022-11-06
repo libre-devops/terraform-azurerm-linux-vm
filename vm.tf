@@ -17,7 +17,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   admin_password        = var.admin_password
   size                  = var.vm_size
 
-  zone                         = var.availability_zone == "alternate" && try(var.availability_set_id, null) == null ? (count.index % 3) + 1 : try(var.availability_zone, null) // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
+  zone                         = var.availability_zone == "alternate" && try(var.availability_set_id, null) == null ? (count.index % 3) + 1 : try(var.availability_zone, null, "alternate") // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
   availability_set_id          = var.availability_zone == null || var.availability_zone == "" ? try(var.availability_set_id, null) : null
   proximity_placement_group_id = try(var.proximity_placement_group_id, null)
 
