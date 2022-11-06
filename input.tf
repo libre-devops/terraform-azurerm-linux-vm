@@ -33,6 +33,12 @@ variable "asg_name" {
   type        = string
 }
 
+variable "availability_set_id" {
+  description = "Input to assign VM to availability set"
+  type        = string
+  default     = null
+}
+
 variable "availability_zone" {
   default     = null
   description = "The availability zone for the VMs to be created to"
@@ -107,6 +113,12 @@ variable "provision_vm_agent" {
   description = "Whether the Azure agent is installed on this VM, default is true"
   type        = bool
   default     = true
+}
+
+variable "proximity_placement_group_id" {
+  description = "The id of a proximity placement group"
+  type        = string
+  default     = null
 }
 
 variable "public_ip_sku" {

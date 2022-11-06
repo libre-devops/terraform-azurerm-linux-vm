@@ -16,8 +16,12 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   admin_username        = var.admin_username
   admin_password        = var.admin_password
   size                  = var.vm_size
-  zone                  = var.availability_zone == "alternate" ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
-  source_image_id       = try(var.use_custom_image, null) == true ? var.custom_source_image_id : null
+
+  zone                         = var.availability_zone == "alternate" && try(var.availability_set_id, null) == null ? (count.index % 3) + 1 : null // Alternates zones for VMs in count, 1, 2 then 3. Use availability set if you want HA.
+  availability_set_id          = var.availability_zone == null || var.availability_zone == "" ? try(var.availability_set_id, null) : null
+  proximity_placement_group_id = try(var.proximity_placement_group_id, null)
+
+  source_image_id = try(var.use_custom_image, null) == true ? var.custom_source_image_id : null
   #checkov:skip=CKV_AZURE_151:Ensure Encryption at host is enabled
   encryption_at_host_enabled = var.enable_encryption_at_host
 
