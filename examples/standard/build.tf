@@ -28,12 +28,29 @@ module "network" {
   }
 }
 
+# Load cloud init yaml
+data "template_file" "script" {
+  template = file("${path.cwd}/cloud-init.yaml")
+}
+
+# Prep cloud-init yaml for Azure custom data on Linux VM
+data "template_cloudinit_config" "config" {
+  gzip          = true
+  base64_encode = true
+
+  # Main cloud-config configuration file.
+  part {
+    content_type = "text/cloud-config"
+    content      = data.template_file.script.rendered
+  }
+}
 
 module "lnx_vm_simple" {
   source = "registry.terraform.io/libre-devops/linux-vm/azurerm"
 
   rg_name  = module.rg.rg_name
   location = module.rg.rg_location
+  tags     = module.rg.rg_tags
 
   vm_amount                  = 1
   vm_hostname                = "lnx${var.short}${var.loc}${terraform.workspace}"
@@ -41,6 +58,8 @@ module "lnx_vm_simple" {
   use_simple_image_with_plan = true
   vm_os_simple               = "RockyLinux8FreeGen2"
   vm_os_disk_size_gb         = "127"
+  custom_data                = data.template_cloudinit_config.config.rendered
+  user_data                  = base64encode(data.azurerm_client_config.current_creds.tenant_id)
 
   asg_name = "asg-${element(regexall("[a-z]+", element(module.lnx_vm_simple.vm_name, 0)), 0)}-${var.short}-${var.loc}-${terraform.workspace}-01" //asg-vmldoeuwdev-ldo-euw-dev-01 - Regex strips all numbers from string
 
@@ -52,6 +71,14 @@ module "lnx_vm_simple" {
   availability_zone    = "alternate"
   storage_account_type = "Standard_LRS"
   identity_type        = "SystemAssigned"
-
-  tags = module.rg.rg_tags
 }
+
+locals {
+  principal_id_map = {
+    for k, v in element(module.lnx_vm_simple.vm_identity[*], 0) : k => v.principal_id
+  }
+
+  principal_id_string = element(values(local.principal_id_map), 0)
+}
+
+

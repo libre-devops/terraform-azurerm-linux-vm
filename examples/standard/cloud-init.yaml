@@ -1,0 +1,34 @@
+#cloud-config
+package_upgrade: true
+package_update: true
+
+runcmd:
+  - [ 'yum', '-y', 'install', 'epel-release', 'yum-utils' ]
+  - [ 'yum-config-manager', '--add-repo', 'https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo' ]
+  - [ 'yum', '-y', 'install', 'vault', 'lsof', 'nano', 'jq', 'curl']
+  - [ 'adduser', 'vault' ]
+  - [ 'sh', '-c', 'echo export VAULT_ADDR="http://127.0.0.1:8200" >> /etc/environment' ]
+  - [ 'sed', '-i', 's/^SELINUX=enforcing$/SELINUX=disabled/', '/etc/selinux/config' ]
+  - [ 'chown', 'vault:vault', '/etc/vault.d/vault.hcl' ]
+  - [ 'systemctl', 'daemon-reload' ]
+  - [ 'systemctl', 'start', 'vault' ]
+  - [ 'systemctl', 'enable', 'vault' ]
+
+write_files:
+  - path: /etc/vault.d/vault.hcl
+    permissions: '0600'
+    owner: vault:vault
+    content: |
+      storage "file" {
+        path = "/opt/vault/data"
+      }
+      ui = true
+      max_lease_ttl = "2160h"
+      default_lease_ttl = "2160h"
+      listener "tcp" {
+        address = "0.0.0.0:8200"
+        tls_disable = 1
+        proxy_protocol_behavior = "use_always"
+      }
+
+      api_addr = "http://vault.azure.libredevops.org:8200"

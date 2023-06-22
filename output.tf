@@ -28,7 +28,13 @@ output "vm_amount" {
   value       = var.vm_amount
 }
 
-output "vm_identity" {
+output "vm_identity_identity" {
+  description = "The identity block of the VM if exported."
+  value       = azurerm_linux_virtual_machine.linux_vm.*.identity
+}
+
+
+output "vm_identity_zipmap" {
   description = "map with key `Virtual Machine Id`, value `list of identity` created for the Virtual Machine."
   value       = zipmap(azurerm_linux_virtual_machine.linux_vm.*.id, azurerm_linux_virtual_machine.linux_vm.*.identity)
 }
