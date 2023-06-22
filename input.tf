@@ -10,18 +10,6 @@ variable "admin_password" {
   default     = ""
 }
 
-variable "custom_data" {
-  description = "Custom data, such as a cloud-init file to be added to the VM"
-  type        = string
-  default     = null
-}
-
-variable "user_data" {
-  description = "User data such as metadata to be added to your instance"
-  type        = string
-  default     = null
-}
-
 variable "admin_username" {
   description = "The admin username of the VM that will be deployed."
   type        = string
@@ -55,6 +43,12 @@ variable "availability_zone" {
   default     = null
   description = "The availability zone for the VMs to be created to"
   type        = string
+}
+
+variable "custom_data" {
+  description = "Custom data, such as a cloud-init file to be added to the VM"
+  type        = string
+  default     = null
 }
 
 variable "custom_source_image_id" {
@@ -219,6 +213,12 @@ variable "use_simple_image_with_plan" {
   default     = false
   description = "If you are using the Windows OS Sku Calculator with plan, set this to true. Default is false"
   type        = bool
+}
+
+variable "user_data" {
+  description = "User data such as metadata to be added to your instance"
+  type        = string
+  default     = null
 }
 
 variable "vm_amount" {
