@@ -90,7 +90,8 @@ No requirements.
 | <a name="output_nic_ip_config_name"></a> [nic\_ip\_config\_name](#output\_nic\_ip\_config\_name) | The name of the IP Configurations |
 | <a name="output_nic_ip_private_ip"></a> [nic\_ip\_private\_ip](#output\_nic\_ip\_private\_ip) | The private IP assigned to the NIC |
 | <a name="output_vm_amount"></a> [vm\_amount](#output\_vm\_amount) | The amount of VMs passed to the vm\_amount variable |
-| <a name="output_vm_identity"></a> [vm\_identity](#output\_vm\_identity) | map with key `Virtual Machine Id`, value `list of identity` created for the Virtual Machine. |
+| <a name="output_vm_identity"></a> [vm\_identity](#output\_vm\_identity) | The identity block of the VM if exported. |
+| <a name="output_vm_identity_zipmap"></a> [vm\_identity\_zipmap](#output\_vm\_identity\_zipmap) | map with key `Virtual Machine Id`, value `list of identity` created for the Virtual Machine. |
 | <a name="output_vm_ids"></a> [vm\_ids](#output\_vm\_ids) | Virtual machine ids created. |
 | <a name="output_vm_name"></a> [vm\_name](#output\_vm\_name) | The name of the VM |
 | <a name="output_vm_zones"></a> [vm\_zones](#output\_vm\_zones) | map with key `Virtual Machine Id`, value `list of the Availability Zone` which the Virtual Machine should be allocated in. |
