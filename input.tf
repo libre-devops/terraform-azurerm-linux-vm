@@ -10,6 +10,18 @@ variable "admin_password" {
   default     = ""
 }
 
+variable "custom_data" {
+  description = "Custom data, such as a cloud-init file to be added to the VM"
+  type        = string
+  default     = null
+}
+
+variable "user_data" {
+  description = "User data such as metadata to be added to your instance"
+  type        = string
+  default     = null
+}
+
 variable "admin_username" {
   description = "The admin username of the VM that will be deployed."
   type        = string
