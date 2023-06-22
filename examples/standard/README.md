@@ -42,8 +42,8 @@ resource "tls_private_key" "ssh_key" {
 
 locals {
   secrets = {
-    "${var.short}-${var.loc}-${terraform.workspace}-vault-ssh-key"           = tls_private_key.ssh_key.private_key_pem
-    "${var.short}-${var.loc}-${terraform.workspace}-vault-password"           = random_password.password.result
+    "${var.short}-${var.loc}-${terraform.workspace}-vault-ssh-key"  = tls_private_key.ssh_key.private_key_pem
+    "${var.short}-${var.loc}-${terraform.workspace}-vault-password" = random_password.password.result
   }
 }
 
@@ -154,7 +154,7 @@ resource "azurerm_network_security_rule" "vault_inbound" {
   destination_port_range      = "8200"
   source_address_prefix       = "VirtualNetwork"
   destination_address_prefix  = "VirtualNetwork"
-    resource_group_name         = module.nsg.nsg_rg_name
+  resource_group_name         = module.nsg.nsg_rg_name
   network_security_group_name = module.nsg.nsg_name
 }
 
@@ -168,7 +168,7 @@ resource "azurerm_network_security_rule" "vnet_inbound" {
   destination_port_range      = "*"
   source_address_prefix       = "VirtualNetwork"
   destination_address_prefix  = "VirtualNetwork"
-    resource_group_name         = module.nsg.nsg_rg_name
+  resource_group_name         = module.nsg.nsg_rg_name
   network_security_group_name = module.nsg.nsg_name
 }
 
