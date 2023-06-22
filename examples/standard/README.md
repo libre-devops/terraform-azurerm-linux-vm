@@ -24,6 +24,11 @@ resource "random_password" "password" {
 module "keyvault" {
   source = "registry.terraform.io/libre-devops/keyvault/azurerm"
 
+  depends_on = [
+    module.roles,
+  time_sleep.wait_120_seconds # Needed to allow RBAC time to propagate
+  ]
+
   rg_name  = module.rg.rg_name
   location = module.rg.rg_location
   tags     = module.rg.rg_tags
@@ -56,7 +61,7 @@ resource "azurerm_ssh_public_key" "public_ssh_key" {
 }
 
 resource "azurerm_key_vault_secret" "secrets" {
-  depends_on   = [module.keyvault]
+  depends_on   = [module.roles]
   for_each     = local.secrets
   key_vault_id = module.keyvault.kv_id
   name         = each.key
@@ -227,6 +232,16 @@ data "azurerm_role_definition" "key_vault_administrator" {
   name = "Key Vault Administrator"
 }
 
+# Add delay to allow key vault permissions time to propagate on IAM
+resource "time_sleep" "wait_120_seconds" {
+  depends_on = [
+    module.roles
+  ]
+
+  create_duration = "120s"
+}
+
+
 module "roles" {
   source = "registry.terraform.io/libre-devops/custom-roles/azurerm"
 
@@ -292,6 +307,7 @@ No requirements.
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 3.61.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.5.1 |
 | <a name="provider_template"></a> [template](#provider\_template) | 2.2.0 |
+| <a name="provider_time"></a> [time](#provider\_time) | n/a |
 | <a name="provider_tls"></a> [tls](#provider\_tls) | 4.0.4 |
 
 ## Modules
@@ -319,6 +335,7 @@ No requirements.
 | [azurerm_ssh_public_key.public_ssh_key](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/ssh_public_key) | resource |
 | [random_password.password](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_string.random](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| [time_sleep.wait_120_seconds](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) | resource |
 | [tls_private_key.ssh_key](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 | [azurerm_client_config.current_creds](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
 | [azurerm_key_vault.mgmt_kv](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/key_vault) | data source |

@@ -22,6 +22,11 @@ resource "random_password" "password" {
 module "keyvault" {
   source = "registry.terraform.io/libre-devops/keyvault/azurerm"
 
+  depends_on = [
+    module.roles,
+    time_sleep.wait_120_seconds # Needed to allow RBAC time to propagate
+  ]
+
   rg_name  = module.rg.rg_name
   location = module.rg.rg_location
   tags     = module.rg.rg_tags
@@ -54,7 +59,7 @@ resource "azurerm_ssh_public_key" "public_ssh_key" {
 }
 
 resource "azurerm_key_vault_secret" "secrets" {
-  depends_on   = [module.keyvault]
+  depends_on   = [module.roles]
   for_each     = local.secrets
   key_vault_id = module.keyvault.kv_id
   name         = each.key
@@ -224,6 +229,16 @@ locals {
 data "azurerm_role_definition" "key_vault_administrator" {
   name = "Key Vault Administrator"
 }
+
+# Add delay to allow key vault permissions time to propagate on IAM
+resource "time_sleep" "wait_120_seconds" {
+  depends_on = [
+    module.roles
+  ]
+
+  create_duration = "120s"
+}
+
 
 module "roles" {
   source = "registry.terraform.io/libre-devops/custom-roles/azurerm"
