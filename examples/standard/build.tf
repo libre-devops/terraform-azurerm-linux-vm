@@ -75,7 +75,7 @@ module "lnx_vm_simple" {
 
 locals {
   principal_id_map = {
-    for k, v in element(module.lnx_vm_simple.vm_identity[*], 0) : k => v.principal_id
+    for k, v in element(module.lnx_vm_simple.vm_identity_identity[*], 0) : k => v.principal_id
   }
 
   principal_id_string = element(values(local.principal_id_map), 0)
