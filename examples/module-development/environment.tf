@@ -1,7 +1,7 @@
 variable "short" {
   description = "This is passed as an environment variable, it is for a shorthand name for the environment, for example hello-world = hw"
   type        = string
-  default     = "ldo"
+  default     = "lbd"
 }
 
 variable "env" {
@@ -13,7 +13,7 @@ variable "env" {
 variable "loc" {
   description = "The shorthand name of the Azure location, for example, for UK South, use uks.  For UK West, use ukw. Normally passed as TF_VAR in pipeline"
   type        = string
-  default     = "euw"
+  default     = "uks"
 }
 
 variable "Regions" {
