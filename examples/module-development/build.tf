@@ -244,9 +244,22 @@ module "linux_vm" {
       os_disk = {
         disk_size_gb = 128
       }
-      run_vm_command = {
-        inline = "sudo apt-get update && sudo apt-get install -y nginx"
-      }
     },
+  ]
+}
+
+module "run_vm_command" {
+  source = "libre-devops/run-vm-command/azurerm"
+
+  location = module.rg.rg_location
+  tags     = module.rg.rg_tags
+  os_type  = "Linux"
+  vm_id    = module.linux_vm.vm_ids[0]
+
+  commands = [
+    {
+      run_as_user = local.admin_username
+      inline      = "sudo apt-get update && sudo apt-get install -y nginx"
+    }
   ]
 }

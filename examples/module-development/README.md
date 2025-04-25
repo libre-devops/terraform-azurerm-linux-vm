@@ -245,10 +245,23 @@ module "linux_vm" {
       os_disk = {
         disk_size_gb = 128
       }
-      run_vm_command = {
-        inline = "sudo apt-get update && sudo apt-get install -y nginx"
-      }
     },
+  ]
+}
+
+module "run_vm_command" {
+  source = "libre-devops/run-vm-command/azurerm"
+
+  location = module.rg.rg_location
+  tags     = module.rg.rg_tags
+  os_type  = "Linux"
+  vm_id    = module.linux_vm.vm_ids[0]
+
+  commands = [
+    {
+      run_as_user = local.admin_username
+      inline      = "sudo apt-get update && sudo apt-get install -y nginx"
+    }
   ]
 }
 ```
@@ -275,6 +288,7 @@ No requirements.
 | <a name="module_nsg"></a> [nsg](#module\_nsg) | libre-devops/nsg/azurerm | n/a |
 | <a name="module_rg"></a> [rg](#module\_rg) | libre-devops/rg/azurerm | n/a |
 | <a name="module_role_assignments"></a> [role\_assignments](#module\_role\_assignments) | github.com/libre-devops/terraform-azurerm-role-assignment | n/a |
+| <a name="module_run_vm_command"></a> [run\_vm\_command](#module\_run\_vm\_command) | libre-devops/run-vm-command/azurerm | n/a |
 | <a name="module_shared_vars"></a> [shared\_vars](#module\_shared\_vars) | libre-devops/shared-vars/azurerm | n/a |
 | <a name="module_ssh_keys"></a> [ssh\_keys](#module\_ssh\_keys) | libre-devops/ssh-key/azurerm | n/a |
 | <a name="module_subnet_calculator"></a> [subnet\_calculator](#module\_subnet\_calculator) | libre-devops/subnet-calculator/null | n/a |
