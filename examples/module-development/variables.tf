@@ -1,3 +1,10 @@
+variable "deploy_bastion" {
+  type        = bool
+  description = "Deploy Bastion or not"
+  default     = false
+  nullable    = false
+}
+
 variable "env" {
   description = "This is passed as an environment variable, it is for the shorthand environment tag for resource.  For example, production = prod"
   type        = string
@@ -20,11 +27,4 @@ variable "short" {
   description = "This is passed as an environment variable, it is for a shorthand name for the environment, for example hello-world = hw"
   type        = string
   default     = "libd"
-}
-
-variable "deploy_bastion" {
-  type        = bool
-  description = "Deploy Bastion or not"
-  default     = false
-  nullable    = false
 }
