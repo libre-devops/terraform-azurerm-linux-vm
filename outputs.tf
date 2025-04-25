@@ -59,6 +59,11 @@ output "vm_run_command_ids" {
   value       = { for name, rc in azurerm_virtual_machine_run_command.linux_vm : name => rc.id }
 }
 
+output "vm_run_command_instance_view" {
+  description = "Instance view of azurerm_virtual_machine_run_command objects"
+  value       = { for name, rc in azurerm_virtual_machine_run_command.linux_vm : name => rc.instance_view }
+}
+
 output "vm_run_command_locations" {
   description = "Azure region where each run-command resource is created"
   value       = { for name, rc in azurerm_virtual_machine_run_command.linux_vm : name => rc.location }

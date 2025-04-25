@@ -324,7 +324,8 @@ resource "azurerm_virtual_machine_run_command" "linux_vm" {
   )
   location           = var.location
   virtual_machine_id = azurerm_linux_virtual_machine.this[each.key].id
-  run_as_user        = each.value.admin_username
+  run_as_user        = try(each.value.run_vm_command.run_as_user, each.value.admin_username, null)
+  run_as_password    = try(each.value.run_vm_command.run_as_password, each.value.admin_password, null)
   tags               = var.tags
 
   # ────────────────────────────────────────────────────────
