@@ -117,7 +117,9 @@ module "private_dns" {
   }
 }
 
-# The door: a free Developer bastion attached to the vnet. No public IPs on any NIC.
+# The door: a free Developer bastion attached to the vnet. No public IPs on any NIC. Serialized
+# after the DNS links: a Developer bastion requires the vnet in a Succeeded state, and concurrent
+# vnet-link updates can hold it in Updating.
 module "bastion" {
   source  = "libre-devops/bastion/azurerm"
   version = "~> 4.0"
@@ -131,6 +133,8 @@ module "bastion" {
       virtual_network_id = module.network.vnet_id
     }
   }
+
+  depends_on = [module.private_dns]
 }
 
 # The vault the generated SSH keys land in (write-only; the private key never touches state).
