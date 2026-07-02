@@ -1,230 +1,95 @@
-resource "azurerm_public_ip" "pip" {
-  for_each = { for vm in var.linux_vms : vm.name => vm if vm.public_ip_sku != null }
+# One NIC per VM. The public IP is ONLY an input (public IPs live in the public-ip module).
+resource "azurerm_network_interface" "this" {
+  for_each = var.linux_virtual_machines
 
-  name                = each.value.pip_name != null ? each.value.pip_name : "pip-${each.value.name}"
+  resource_group_name = local.rg_name
   location            = var.location
-  resource_group_name = var.rg_name
-  allocation_method   = each.value.allocation_method
-  domain_name_label   = try(each.value.pip_custom_dns_label, each.value.computer_name, null)
-  sku                 = each.value.public_ip_sku
-  tags                = var.tags
+  tags                = merge(var.tags, coalesce(each.value.tags, {}))
+  name                = coalesce(each.value.nic_name, "nic-${each.key}")
 
-  lifecycle {
-    ignore_changes = [domain_name_label]
-  }
-}
-
-resource "azurerm_network_interface" "nic" {
-  for_each = { for vm in var.linux_vms : vm.name => vm }
-
-  name                           = each.value.nic_name != null ? each.value.nic_name : "nic-${each.value.name}"
-  location                       = var.location
-  resource_group_name            = var.rg_name
-  accelerated_networking_enabled = each.value.enable_accelerated_networking
+  accelerated_networking_enabled = each.value.accelerated_networking_enabled
+  ip_forwarding_enabled          = each.value.ip_forwarding_enabled
+  dns_servers                    = each.value.dns_servers
 
   ip_configuration {
-    name                          = each.value.nic_ipconfig_name != null ? each.value.nic_ipconfig_name : "nic-ipcon-${each.value.name}"
+    name                          = coalesce(each.value.ipconfig_name, "ipconfig-${each.key}")
     primary                       = true
-    private_ip_address_allocation = each.value.static_private_ip == null ? "Dynamic" : "Static"
-    private_ip_address            = each.value.static_private_ip
-    public_ip_address_id          = lookup(each.value, "public_ip_sku", null) == null ? null : azurerm_public_ip.pip[each.key].id
     subnet_id                     = each.value.subnet_id
-  }
-  tags = var.tags
-
-  timeouts {
-    create = "5m"
-    delete = "10m"
+    private_ip_address_allocation = each.value.private_ip_address != null ? "Static" : "Dynamic"
+    private_ip_address            = each.value.private_ip_address
+    public_ip_address_id          = each.value.public_ip_address_id
   }
 }
 
-resource "azurerm_application_security_group" "asg" {
-  for_each = { for vm in var.linux_vms : vm.name => vm if vm.create_asg == true }
+resource "azurerm_network_interface_application_security_group_association" "this" {
+  for_each = local.asg_associations
 
-  name                = each.value.asg_name != null ? each.value.asg_name : "asg-${each.value.name}"
-  location            = var.location
-  resource_group_name = var.rg_name
-  tags                = var.tags
+  network_interface_id          = azurerm_network_interface.this[each.value.vm_key].id
+  application_security_group_id = each.value.asg_id
 }
 
-resource "azurerm_network_interface_application_security_group_association" "asg_association" {
-  for_each = { for vm in var.linux_vms : vm.name => vm }
+# Marketplace plan acceptance, deduplicated per plan across VMs.
+resource "azurerm_marketplace_agreement" "this" {
+  for_each = local.marketplace_agreements
 
-  network_interface_id          = azurerm_network_interface.nic[each.key].id
-  application_security_group_id = each.value.asg_id != null ? each.value.asg_id : azurerm_application_security_group.asg[each.key].id
+  publisher = each.value.publisher
+  offer     = each.value.offer
+  plan      = each.value.plan
 }
 
-
-resource "random_integer" "zone" {
-  for_each = { for vm in var.linux_vms : vm.name => vm if vm.availability_zone == "random" }
-  min      = 1
-  max      = 3
-}
-
-locals {
-  sanitized_names = { for vm in var.linux_vms : vm.name => upper(replace(replace(replace(vm.name, " ", ""), "-", ""), "_", "")) }
-  netbios_names   = { for key, value in local.sanitized_names : key => substr(value, 0, min(length(value), 15)) }
-  random_zones    = { for idx, vm in var.linux_vms : vm.name => vm.availability_zone == "random" ? tostring(idx + 1) : vm.availability_zone }
-}
-
+# The VMs. Secure defaults: SSH-only auth, Trusted Launch (secure boot + vTPM; the catalog images are
+# all Gen2 and Trusted Launch capable), a system-assigned identity, managed boot diagnostics, and
+# platform patch assessment.
 resource "azurerm_linux_virtual_machine" "this" {
-  for_each = { for vm in var.linux_vms : vm.name => vm }
+  for_each = var.linux_virtual_machines
 
-  // Forces acceptance of marketplace terms before creating a VM
-  depends_on = [
-    azurerm_marketplace_agreement.plan_acceptance_simple,
-    azurerm_marketplace_agreement.plan_acceptance_custom
-  ]
+  depends_on = [azurerm_marketplace_agreement.this]
 
-  name                         = each.value.name
-  resource_group_name          = var.rg_name
-  location                     = var.location
-  network_interface_ids        = [azurerm_network_interface.nic[each.key].id]
-  license_type                 = each.value.license_type
-  patch_assessment_mode        = each.value.patch_assessment_mode
-  patch_mode                   = each.value.patch_mode
-  computer_name                = each.value.computer_name != null ? each.value.computer_name : local.netbios_names[each.key]
-  admin_username               = each.value.admin_username
-  admin_password               = each.value.admin_password
-  size                         = each.value.vm_size
-  source_image_id              = try(each.value.use_custom_image, null) == true ? each.value.custom_source_image_id : null
-  zone                         = local.random_zones[each.key]
-  availability_set_id          = each.value.availability_set_id
-  virtual_machine_scale_set_id = each.value.virtual_machine_scale_set_id
-  user_data                    = each.value.user_data
-  custom_data                  = each.value.custom_data
-  reboot_setting               = each.value.reboot_setting
-  secure_boot_enabled          = each.value.secure_boot_enabled
-  vtpm_enabled                 = each.value.vtpm_enabled
+  resource_group_name = local.rg_name
+  location            = var.location
+  tags                = merge(var.tags, coalesce(each.value.tags, {}))
+  name                = each.key
 
-  tags = var.tags
+  size                  = each.value.size
+  network_interface_ids = [azurerm_network_interface.this[each.key].id]
 
-  encryption_at_host_enabled                             = each.value.enable_encryption_at_host
-  allow_extension_operations                             = each.value.allow_extension_operations
-  provision_vm_agent                                     = each.value.provision_vm_agent
-  bypass_platform_safety_checks_on_user_schedule_enabled = each.value.bypass_platform_safety_checks_on_user_schedule_enabled
-  capacity_reservation_group_id                          = each.value.capacity_reservation_group_id
-  disable_password_authentication                        = each.value.disable_password_authentication
-  disk_controller_type                                   = each.value.disk_controller_type
-  edge_zone                                              = each.value.edge_zone
-
-  dynamic "gallery_application" {
-    for_each = each.value.gallery_application != null ? each.value.gallery_application : []
-    content {
-      version_id                                  = gallery_application.value.version_id
-      automatic_upgrade_enabled                   = gallery_application.value.automatic_upgrade_enabled
-      order                                       = gallery_application.value.order
-      tag                                         = gallery_application.value.tag
-      treat_failure_as_deployment_failure_enabled = gallery_application.value.treat_failure_as_deployment_failure_enabled
-    }
-  }
+  admin_username                  = each.value.admin_username
+  admin_password                  = each.value.admin_password
+  disable_password_authentication = each.value.disable_password_authentication
 
   dynamic "admin_ssh_key" {
-    for_each = each.value.admin_ssh_key != null ? each.value.admin_ssh_key : []
+    for_each = each.value.admin_ssh_keys
     content {
       public_key = admin_ssh_key.value.public_key
-      username   = admin_ssh_key.value.username
+      username   = coalesce(admin_ssh_key.value.username, each.value.admin_username)
     }
   }
 
-  dynamic "additional_capabilities" {
-    for_each = each.value.ultra_ssd_enabled ? [1] : []
-    content {
-      ultra_ssd_enabled   = each.value.ultra_ssd_enabled
-      hibernation_enabled = each.value.hibernation_enabled
-    }
-  }
-
-  # Use simple image
-  dynamic "source_image_reference" {
-    for_each = try(each.value.use_simple_image, null) == true && try(each.value.use_simple_image_with_plan, null) == false && try(each.value.use_custom_image, null) == false ? [1] : []
-    content {
-      publisher = coalesce(each.value.vm_os_publisher, module.os_calculator[each.value.name].calculated_value_os_publisher)
-      offer     = coalesce(each.value.vm_os_offer, module.os_calculator[each.value.name].calculated_value_os_offer)
-      sku       = coalesce(each.value.vm_os_sku, module.os_calculator[each.value.name].calculated_value_os_sku)
-      version   = coalesce(each.value.vm_os_version, "latest")
-    }
-  }
-
-
-  # Use custom image reference
-  dynamic "source_image_reference" {
-    for_each = try(each.value.use_simple_image, null) == false && try(each.value.use_simple_image_with_plan, null) == false && try(length(each.value.source_image_reference), 0) > 0 && try(length(each.value.plan), 0) == 0 && try(each.value.use_custom_image, null) == false ? [1] : []
-
-    content {
-      publisher = lookup(each.value.source_image_reference, "publisher", null)
-      offer     = lookup(each.value.source_image_reference, "offer", null)
-      sku       = lookup(each.value.source_image_reference, "sku", null)
-      version   = lookup(each.value.source_image_reference, "version", null)
-    }
-  }
+  source_image_id = each.value.source_image_id
 
   dynamic "source_image_reference" {
-    for_each = try(each.value.use_simple_image, null) == true && try(each.value.use_simple_image_with_plan, null) == true && try(each.value.use_custom_image, null) == false ? [1] : []
-
+    for_each = each.value.source_image_id == null ? [local.resolved_image_reference[each.key]] : []
     content {
-      publisher = coalesce(each.value.vm_os_publisher, module.os_calculator_with_plan[each.value.name].calculated_value_os_publisher)
-      offer     = coalesce(each.value.vm_os_offer, module.os_calculator_with_plan[each.value.name].calculated_value_os_offer)
-      sku       = coalesce(each.value.vm_os_sku, module.os_calculator_with_plan[each.value.name].calculated_value_os_sku)
-      version   = coalesce(each.value.vm_os_version, "latest")
+      publisher = source_image_reference.value.publisher
+      offer     = source_image_reference.value.offer
+      sku       = source_image_reference.value.sku
+      version   = source_image_reference.value.version
     }
   }
-
 
   dynamic "plan" {
-    for_each = try(each.value.use_simple_image, null) == false && try(each.value.use_simple_image_with_plan, null) == false && try(length(each.value.plan), 0) > 0 && try(each.value.use_custom_image, null) == false ? [1] : []
-
+    for_each = each.value.plan != null ? [each.value.plan] : []
     content {
-      name      = coalesce(each.value.vm_os_sku, module.os_calculator_with_plan[each.value.name].calculated_value_os_sku)
-      product   = coalesce(each.value.vm_os_offer, module.os_calculator_with_plan[each.value.name].calculated_value_os_offer)
-      publisher = coalesce(each.value.vm_os_publisher, module.os_calculator_with_plan[each.value.name].calculated_value_os_publisher)
+      name      = plan.value.name
+      product   = plan.value.product
+      publisher = plan.value.publisher
     }
   }
-
-
-  dynamic "plan" {
-    for_each = try(each.value.use_simple_image, null) == false && try(each.value.use_simple_image_with_plan, null) == false && try(length(each.value.plan), 0) > 0 && try(each.value.use_custom_image, null) == false ? [1] : []
-
-    content {
-      name      = lookup(each.value.plan, "name", null)
-      product   = lookup(each.value.plan, "product", null)
-      publisher = lookup(each.value.plan, "publisher", null)
-    }
-  }
-
-
-  dynamic "identity" {
-    for_each = each.value.identity_type == "SystemAssigned" ? [each.value.identity_type] : []
-    content {
-      type = each.value.identity_type
-    }
-  }
-
-  dynamic "identity" {
-    for_each = each.value.identity_type == "SystemAssigned, UserAssigned" ? [each.value.identity_type] : []
-    content {
-      type         = each.value.identity_type
-      identity_ids = try(each.value.identity_ids, [])
-    }
-  }
-
-  dynamic "identity" {
-    for_each = each.value.identity_type == "UserAssigned" ? [each.value.identity_type] : []
-    content {
-      type         = each.value.identity_type
-      identity_ids = length(try(each.value.identity_ids, [])) > 0 ? each.value.identity_ids : []
-    }
-  }
-
-
-  priority        = try(each.value.spot_instance, false) ? "Spot" : "Regular"
-  max_bid_price   = try(each.value.spot_instance, false) ? each.value.spot_instance_max_bid_price : null
-  eviction_policy = try(each.value.spot_instance, false) ? each.value.spot_instance_eviction_policy : null
 
   os_disk {
-    name                             = each.value.os_disk.name != null ? each.value.os_disk.name : "osdisk-${each.value.name}"
+    name                             = coalesce(each.value.os_disk.name, "osdisk-${each.key}")
     caching                          = each.value.os_disk.caching
-    storage_account_type             = each.value.os_disk.os_disk_type
+    storage_account_type             = each.value.os_disk.storage_account_type
     disk_size_gb                     = each.value.os_disk.disk_size_gb
     disk_encryption_set_id           = each.value.os_disk.disk_encryption_set_id
     secure_vm_disk_encryption_set_id = each.value.os_disk.secure_vm_disk_encryption_set_id
@@ -239,22 +104,78 @@ resource "azurerm_linux_virtual_machine" "this" {
     }
   }
 
+  secure_boot_enabled        = each.value.secure_boot_enabled
+  vtpm_enabled               = each.value.vtpm_enabled
+  encryption_at_host_enabled = each.value.encryption_at_host_enabled
+
+  identity {
+    type         = each.value.identity.type
+    identity_ids = each.value.identity.identity_ids
+  }
+
   dynamic "boot_diagnostics" {
-    for_each = each.value.boot_diagnostics_storage_account_uri != null ? [each.value.boot_diagnostics_storage_account_uri] : [null]
+    for_each = each.value.boot_diagnostics_enabled ? [1] : []
     content {
-      storage_account_uri = boot_diagnostics.value
+      storage_account_uri = each.value.boot_diagnostics_storage_account_uri
+    }
+  }
+
+  patch_mode                                             = each.value.patch_mode
+  patch_assessment_mode                                  = each.value.patch_assessment_mode
+  bypass_platform_safety_checks_on_user_schedule_enabled = each.value.bypass_platform_safety_checks_on_user_schedule_enabled
+  reboot_setting                                         = each.value.reboot_setting
+  provision_vm_agent                                     = each.value.provision_vm_agent
+  allow_extension_operations                             = each.value.allow_extension_operations
+  extensions_time_budget                                 = each.value.extensions_time_budget
+
+  zone                          = each.value.zone
+  availability_set_id           = each.value.availability_set_id
+  virtual_machine_scale_set_id  = each.value.virtual_machine_scale_set_id
+  proximity_placement_group_id  = each.value.proximity_placement_group_id
+  capacity_reservation_group_id = each.value.capacity_reservation_group_id
+  dedicated_host_id             = each.value.dedicated_host_id
+  dedicated_host_group_id       = each.value.dedicated_host_group_id
+  platform_fault_domain         = each.value.platform_fault_domain
+  edge_zone                     = each.value.edge_zone
+
+  priority        = each.value.spot != null ? "Spot" : "Regular"
+  max_bid_price   = each.value.spot != null ? each.value.spot.max_bid_price : null
+  eviction_policy = each.value.spot != null ? each.value.spot.eviction_policy : null
+
+  dynamic "additional_capabilities" {
+    for_each = each.value.additional_capabilities != null ? [each.value.additional_capabilities] : []
+    content {
+      ultra_ssd_enabled   = additional_capabilities.value.ultra_ssd_enabled
+      hibernation_enabled = additional_capabilities.value.hibernation_enabled
+    }
+  }
+
+  license_type         = each.value.license_type
+  user_data            = each.value.user_data
+  custom_data          = each.value.custom_data
+  computer_name        = each.value.computer_name
+  disk_controller_type = each.value.disk_controller_type
+
+  dynamic "gallery_application" {
+    for_each = each.value.gallery_applications
+    content {
+      version_id                                  = gallery_application.value.version_id
+      automatic_upgrade_enabled                   = gallery_application.value.automatic_upgrade_enabled
+      configuration_blob_uri                      = gallery_application.value.configuration_blob_uri
+      order                                       = gallery_application.value.order
+      tag                                         = gallery_application.value.tag
+      treat_failure_as_deployment_failure_enabled = gallery_application.value.treat_failure_as_deployment_failure_enabled
     }
   }
 
   dynamic "secret" {
-    for_each = each.value.secrets != null ? each.value.secrets : []
+    for_each = each.value.secrets
     content {
       key_vault_id = secret.value.key_vault_id
-
       dynamic "certificate" {
-        for_each = secret.value.certificates
+        for_each = secret.value.certificate_urls
         content {
-          url = certificate.value.url
+          url = certificate.value
         }
       }
     }
@@ -264,114 +185,71 @@ resource "azurerm_linux_virtual_machine" "this" {
     for_each = each.value.termination_notification != null ? [each.value.termination_notification] : []
     content {
       enabled = termination_notification.value.enabled
-      timeout = lookup(termination_notification.value, "timeout", "PT5M")
+      timeout = termination_notification.value.timeout
     }
   }
-}
 
-module "os_calculator" {
-  source       = "libre-devops/linux-os-sku-calculator/azurerm"
-  for_each     = { for vm in var.linux_vms : vm.name => vm if try(vm.use_simple_image, null) == true }
-  vm_os_simple = each.value.vm_os_simple
-}
-
-module "os_calculator_with_plan" {
-  source       = "libre-devops/linux-os-sku-with-plan-calculator/azurerm"
-  for_each     = { for vm in var.linux_vms : vm.name => vm if try(vm.use_simple_image_with_plan, null) == true }
-  vm_os_simple = each.value.vm_os_simple
-}
-
-resource "azurerm_marketplace_agreement" "plan_acceptance_simple" {
-  for_each = { for vm in var.linux_vms : vm.name => vm if try(vm.use_simple_image_with_plan, null) == true && try(vm.accept_plan, null) == true && try(vm.use_custom_image, null) == false }
-
-  publisher = coalesce(each.value.vm_os_publisher, module.os_calculator_with_plan[each.key].calculated_value_os_publisher)
-  offer     = coalesce(each.value.vm_os_offer, module.os_calculator_with_plan[each.key].calculated_value_os_offer)
-  plan      = coalesce(each.value.vm_os_sku, module.os_calculator_with_plan[each.key].calculated_value_os_sku)
-}
-
-resource "azurerm_marketplace_agreement" "plan_acceptance_custom" {
-  for_each = { for vm in var.linux_vms : vm.name => vm if try(vm.use_custom_image_with_plan, null) == true && try(vm.accept_plan, null) == true && try(vm.use_custom_image, null) == true }
-
-  publisher = lookup(each.value.plan, "publisher", null)
-  offer     = lookup(each.value.plan, "product", null)
-  plan      = lookup(each.value.plan, "name", null)
-}
-
-################################################################################
-# Modern Run Command (azurerm_virtual_machine_run_command)                     #
-################################################################################
-resource "azurerm_virtual_machine_run_command" "linux_vm" {
-  for_each = {
-    for vm in var.linux_vms :
-    vm.name => vm
-    /*
-      Create the resource only when the user has supplied
-      *one* of inline | script_file | script_uri
-    */
-    if vm.run_vm_command != null && (
-      try(vm.run_vm_command.inline, null) != null ||
-      try(vm.run_vm_command.script_file, null) != null ||
-      try(vm.run_vm_command.script_uri, null) != null
-    )
-  }
-
-  # ────────────────────────────────────────────────────────
-  # Required top-level arguments
-  # ────────────────────────────────────────────────────────
-  name = coalesce(
-    try(each.value.run_vm_command.extension_name, null),
-    "run-cmd-${each.value.name}"
-  )
-  location           = var.location
-  virtual_machine_id = azurerm_linux_virtual_machine.this[each.key].id
-  run_as_user        = try(each.value.run_vm_command.run_as_user, each.value.admin_username, null)
-  run_as_password    = try(each.value.run_vm_command.run_as_password, each.value.admin_password, null)
-  tags               = var.tags
-
-  # ────────────────────────────────────────────────────────
-  # Source block – exactly one form per VM
-  # ────────────────────────────────────────────────────────
-  dynamic "source" {
-    # ── case 1: inline string ─────────────────────────────
-    for_each = try(each.value.run_vm_command.inline, null) != null ? [1] : []
+  dynamic "os_image_notification" {
+    for_each = each.value.os_image_notification_timeout != null ? [1] : []
     content {
-      script = each.value.run_vm_command.inline
+      timeout = each.value.os_image_notification_timeout
     }
   }
 
-  dynamic "source" {
-    # ── case 2: local script file ─────────────────────────
-    for_each = try(each.value.run_vm_command.script_file, null) != null ? [1] : []
-    content {
-      # Read the file content at plan time
-      script = file(each.value.run_vm_command.script_file)
-    }
-  }
-
-  dynamic "source" {
-    # ── case 3: remote URI ────────────────────────────────
-    for_each = try(each.value.run_vm_command.script_uri, null) != null ? [1] : []
-    content {
-      script_uri = each.value.run_vm_command.script_uri
-    }
-  }
-
-  # ────────────────────────────────────────────────────────
-  # Preconditions – enforce “one and only one” source type
-  # ────────────────────────────────────────────────────────
   lifecycle {
     precondition {
-      condition = (
-        length(compact([
-          try(each.value.run_vm_command.inline, null),
-          try(each.value.run_vm_command.script_file, null),
-          try(each.value.run_vm_command.script_uri, null)
-        ])) == 1
-      )
-      error_message = "run_vm_command for VM '${each.key}' must set exactly ONE of inline, script_file, or script_uri."
+      condition     = each.value.source_image_simple == null || contains(keys(local.image_catalog), coalesce(each.value.source_image_simple, "-"))
+      error_message = "VM \"${each.key}\": source_image_simple must be one of the catalog keys: ${join(", ", sort(keys(local.image_catalog)))}."
     }
-
-    ignore_changes = [tags]
+    precondition {
+      condition     = local.vm_insights_enabled ? each.value.identity.type != null : true
+      error_message = "VM \"${each.key}\": vm_insights needs a managed identity on the VM (the default SystemAssigned identity satisfies this)."
+    }
   }
 }
 
+# Data disks, one managed disk plus attachment per (vm, disk). LUNs auto-assign by declaration order
+# unless set explicitly.
+resource "azurerm_managed_disk" "data" {
+  for_each = local.data_disks
+
+  resource_group_name = local.rg_name
+  location            = var.location
+  tags                = merge(var.tags, coalesce(var.linux_virtual_machines[each.value.vm_key].tags, {}))
+  name                = each.value.name
+
+  storage_account_type   = each.value.disk.storage_account_type
+  create_option          = each.value.disk.create_option
+  disk_size_gb           = each.value.disk.disk_size_gb
+  source_resource_id     = each.value.disk.source_resource_id
+  disk_encryption_set_id = each.value.disk.disk_encryption_set_id
+  zone                   = var.linux_virtual_machines[each.value.vm_key].zone
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "data" {
+  for_each = local.data_disks
+
+  managed_disk_id    = azurerm_managed_disk.data[each.key].id
+  virtual_machine_id = azurerm_linux_virtual_machine.this[each.value.vm_key].id
+  lun                = coalesce(each.value.disk.lun, each.value.auto_lun)
+  caching            = each.value.disk.caching
+}
+
+# Modern run commands (one optional command per VM), executed once the VM exists.
+resource "azurerm_virtual_machine_run_command" "this" {
+  for_each = local.run_commands
+
+  location           = var.location
+  tags               = var.tags
+  name               = coalesce(each.value.name, "run-cmd-${each.key}")
+  virtual_machine_id = azurerm_linux_virtual_machine.this[each.key].id
+
+  run_as_user     = each.value.run_as_user
+  run_as_password = each.value.run_as_password
+
+  source {
+    script     = each.value.script
+    script_uri = each.value.script_uri
+    command_id = each.value.command_id
+  }
+}
