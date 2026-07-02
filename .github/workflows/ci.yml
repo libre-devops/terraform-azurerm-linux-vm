@@ -93,9 +93,6 @@ jobs:
           terraform-stack-to-run-json: '["minimal","complete"]'
           run-terraform-plan: true
           run-terraform-apply: true
-          # TEMP: heal a leaked stack whose write-only vault secrets cannot be refreshed from a new
-          # runner IP (the apply updates the vault ip_rules first); remove after a clean run.
-          terraform-plan-extra-args-json: '["-refresh=false"]'
           arm-client-id: ${{ vars.AZURE_CLIENT_ID }}
           arm-tenant-id: ${{ vars.AZURE_TENANT_ID }}
           arm-subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
