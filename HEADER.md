@@ -36,9 +36,9 @@ VMs keyed by name, each with its own NIC, built so the SECURE shape is the ZERO-
   plan-visible; the intended door is the bastion module's free Developer SKU.
 
 **The image catalog** replaces the old external "SKU calculator" modules: `source_image_simple`
-takes a friendly key (`Ubuntu2204`, `Ubuntu2404`, `Debian12`, `RHEL9`; discover them via the
-`image_catalog_keys` output) resolving to marketplace references verified against the live platform,
-all Gen2 and Trusted Launch capable. `source_image_reference` and `source_image_id` remain
+takes a friendly key (`Ubuntu2204`, `Ubuntu2404`, `Debian12`, `RHEL9`, `Sles15`, `Rocky9`; discover
+them via the `image_catalog_keys` output) resolving to marketplace references verified against the
+live platform, all Gen2 and Trusted Launch capable; Rocky carries its marketplace plan automatically. `source_image_reference` and `source_image_id` remain
 first-class, and marketplace `plan` images get their `azurerm_marketplace_agreement` created
 (deduplicated) when `accept_marketplace_agreement = true`.
 
@@ -47,11 +47,28 @@ Azure Monitor agent on every VM (per-VM opt-out), creates the VM Insights data c
 associates an existing `data_collection_rule_id`), and associates each VM, using the VMs' managed
 identities.
 
-**The rest of the surface**: data disks with auto-assigned LUNs, spot pricing, zones and every
-placement option (availability sets, VMSS attachment, proximity groups, capacity reservations,
-dedicated hosts), ASG associations, static private IPs, accelerated networking, encryption at host,
-gallery applications, key vault certificate secrets, termination and OS image notifications, modern
-run commands, and full patching controls.
+**The rest of the surface**: flexible identity (SystemAssigned by default, UserAssigned, both, or
+None), a `cloud_init` convenience that base64-encodes plain cloud-init YAML for you (the
+often-forgotten step), data disks with auto-assigned LUNs, spot pricing, zones and every placement
+option (availability sets, VMSS attachment, proximity groups, capacity reservations, dedicated
+hosts), ASG associations, static private IPs, accelerated networking, encryption at host, gallery
+applications, key vault certificate secrets, termination and OS image notifications, modern run
+commands, and full patching controls. The often-forgotten subscription plumbing is opt-in and
+conditional too: `resource_provider_feature_registrations` (for example
+`Microsoft.Compute/EncryptionAtHost`, which a check reminds you about) and
+`resource_provider_registrations`, both documented as subscription-wide and single-owner.
+
+## Disclaimers (from the provider, worth knowing)
+
+- Terraform removes the OS disk with the VM by default (configurable via the provider `features`
+  block).
+- All arguments, including the administrator login and password, are stored in the raw state as
+  plain text: protect the state.
+- `azurerm_linux_virtual_machine` does not support unmanaged disks or attaching existing OS disks
+  (capture an image, or fall back to `azurerm_virtual_machine`).
+- `public_ip_address` outputs may be unpopulated for Dynamic public IPs.
+- `vm_agent_platform_updates_enabled` is platform-controlled and read-only; this module does not
+  touch it.
 
 ## Usage
 

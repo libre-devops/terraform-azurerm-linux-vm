@@ -296,3 +296,159 @@ run "spot_instance" {
     error_message = "Spot configuration should pass through."
   }
 }
+
+# Identity flexibility: None omits the block entirely; both types carry user identity ids.
+run "identity_flexibility" {
+  command = apply
+
+  variables {
+    linux_virtual_machines = {
+      "vm-noid" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        identity            = { type = "None" }
+        admin_ssh_keys      = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+      "vm-both" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        identity = {
+          type         = "SystemAssigned, UserAssigned"
+          identity_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-t"]
+        }
+        admin_ssh_keys = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_linux_virtual_machine.this["vm-noid"].identity) == 0
+    error_message = "identity None should omit the identity block entirely."
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine.this["vm-both"].identity[0].type == "SystemAssigned, UserAssigned"
+    error_message = "Combined identities should pass through."
+  }
+}
+
+# cloud_init is base64-encoded for you.
+run "cloud_init_encoded" {
+  command = apply
+
+  variables {
+    linux_virtual_machines = {
+      "vm-ci" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        cloud_init          = "#cloud-config\npackages:\n  - nginx\n"
+        admin_ssh_keys      = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine.this["vm-ci"].custom_data == base64encode("#cloud-config\npackages:\n  - nginx\n")
+    error_message = "cloud_init should land base64-encoded in custom_data."
+  }
+}
+
+# cloud_init and custom_data together are rejected.
+run "rejects_cloud_init_with_custom_data" {
+  command = plan
+
+  variables {
+    linux_virtual_machines = {
+      "vm-bad" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        cloud_init          = "#cloud-config\n"
+        custom_data         = "I2Nsb3VkLWNvbmZpZwo="
+        admin_ssh_keys      = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  expect_failures = [var.linux_virtual_machines]
+}
+
+# Rocky's catalog entry carries its marketplace plan, and acceptance creates the (deduplicated)
+# agreement.
+run "rocky_plan_flows" {
+  command = apply
+
+  variables {
+    linux_virtual_machines = {
+      "vm-rocky" = {
+        size                         = "Standard_B2s"
+        admin_username               = "azureuser"
+        source_image_simple          = "Rocky9"
+        accept_marketplace_agreement = true
+        subnet_id                    = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        admin_ssh_keys               = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine.this["vm-rocky"].plan[0].name == "9-base" && azurerm_linux_virtual_machine.this["vm-rocky"].plan[0].publisher == "resf"
+    error_message = "The catalog-carried Rocky plan should flow into the VM's plan block."
+  }
+
+  assert {
+    condition     = length(azurerm_marketplace_agreement.this) == 1
+    error_message = "Accepting the agreement should create exactly one (deduplicated) marketplace agreement."
+  }
+}
+
+# Feature registrations: the string form splits into provider/feature, and the encryption-at-host
+# reminder fires when the flag is set without the registration.
+run "feature_registration" {
+  command = apply
+
+  variables {
+    resource_provider_feature_registrations = ["Microsoft.Compute/EncryptionAtHost"]
+    linux_virtual_machines = {
+      "vm-eah" = {
+        size                       = "Standard_B2s"
+        admin_username             = "azureuser"
+        source_image_simple        = "Ubuntu2404"
+        subnet_id                  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        encryption_at_host_enabled = true
+        admin_ssh_keys             = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_resource_provider_feature_registration.this["Microsoft.Compute/EncryptionAtHost"].provider_name == "Microsoft.Compute" && azurerm_resource_provider_feature_registration.this["Microsoft.Compute/EncryptionAtHost"].name == "EncryptionAtHost"
+    error_message = "The feature string should split into provider and feature names."
+  }
+}
+
+run "flags_encryption_at_host_without_feature" {
+  command = plan
+
+  variables {
+    linux_virtual_machines = {
+      "vm-eah" = {
+        size                       = "Standard_B2s"
+        admin_username             = "azureuser"
+        source_image_simple        = "Ubuntu2404"
+        subnet_id                  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        encryption_at_host_enabled = true
+        admin_ssh_keys             = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  expect_failures = [check.encryption_at_host_feature_reminder]
+}

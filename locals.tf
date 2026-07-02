@@ -4,14 +4,39 @@ locals {
 
   # Catalog resolution: a missing key falls back to a placeholder so expansion never errors
   # mid-expression, and the VM resource's precondition fails the plan with the valid key list.
-  catalog_fallback = { publisher = "(unknown)", offer = "(unknown)", sku = "(unknown)" }
+  catalog_fallback = { publisher = "(unknown)", offer = "(unknown)", sku = "(unknown)", plan = null }
 
   resolved_image_reference = {
     for k, v in var.linux_virtual_machines : k => (
       v.source_image_simple != null
-      ? merge(lookup(local.image_catalog, coalesce(v.source_image_simple, "-"), local.catalog_fallback), { version = "latest" })
+      ? {
+        publisher = lookup(local.image_catalog, coalesce(v.source_image_simple, "-"), local.catalog_fallback).publisher
+        offer     = lookup(local.image_catalog, coalesce(v.source_image_simple, "-"), local.catalog_fallback).offer
+        sku       = lookup(local.image_catalog, coalesce(v.source_image_simple, "-"), local.catalog_fallback).sku
+        version   = "latest"
+      }
       : v.source_image_reference
     ) if v.source_image_id == null
+  }
+
+  # Effective marketplace plan: an explicit plan wins, otherwise a plan carried by the catalog entry
+  # (Rocky) flows automatically.
+  resolved_plan = {
+    for k, v in var.linux_virtual_machines : k => (
+      v.plan != null ? v.plan : (
+        v.source_image_simple != null
+        ? lookup(local.image_catalog, coalesce(v.source_image_simple, "-"), local.catalog_fallback).plan
+        : null
+      )
+    )
+  }
+
+  # Effective custom data: the cloud_init convenience base64-encodes for you (the often-forgotten
+  # step); custom_data passes through as-is.
+  effective_custom_data = {
+    for k, v in var.linux_virtual_machines : k => (
+      v.cloud_init != null ? base64encode(v.cloud_init) : v.custom_data
+    )
   }
 
   # Data disks flattened to one instance per (vm, disk), keyed "vm|disk". LUNs are auto-assigned by
@@ -45,14 +70,15 @@ locals {
     ]) : item.key => item
   }
 
-  # Marketplace agreements are per (publisher, product, plan), deduplicated across VMs.
+  # Marketplace agreements are per (publisher, product, plan), deduplicated across VMs, covering both
+  # explicit plans and catalog-carried ones.
   marketplace_agreements = {
     for item in distinct([
       for vm_key, vm in var.linux_virtual_machines : {
-        publisher = vm.plan.publisher
-        offer     = vm.plan.product
-        plan      = vm.plan.name
-      } if vm.plan != null && vm.accept_marketplace_agreement
+        publisher = local.resolved_plan[vm_key].publisher
+        offer     = local.resolved_plan[vm_key].product
+        plan      = local.resolved_plan[vm_key].name
+      } if local.resolved_plan[vm_key] != null && vm.accept_marketplace_agreement
     ]) : "${item.publisher}|${item.offer}|${item.plan}" => item
   }
 
@@ -61,7 +87,7 @@ locals {
 
   # VM Insights wiring: the agent goes on every VM that has not opted out; associations follow.
   vm_insights_enabled = var.vm_insights != null
-  monitored_vms       = local.vm_insights_enabled ? { for k, v in var.linux_virtual_machines : k => v if v.monitor_agent_enabled } : {}
+  monitored_vms       = local.vm_insights_enabled ? { for k, v in var.linux_virtual_machines : k => v if v.monitor_agent_enabled && v.identity.type != "None" } : {}
   create_dcr          = local.vm_insights_enabled && try(var.vm_insights.data_collection_rule_id, null) == null
   effective_dcr_id    = local.create_dcr ? azurerm_monitor_data_collection_rule.vm_insights[0].id : try(var.vm_insights.data_collection_rule_id, null)
 }

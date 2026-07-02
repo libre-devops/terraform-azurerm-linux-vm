@@ -78,7 +78,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   }
 
   dynamic "plan" {
-    for_each = each.value.plan != null ? [each.value.plan] : []
+    for_each = local.resolved_plan[each.key] != null ? [local.resolved_plan[each.key]] : []
     content {
       name      = plan.value.name
       product   = plan.value.product
@@ -108,9 +108,13 @@ resource "azurerm_linux_virtual_machine" "this" {
   vtpm_enabled               = each.value.vtpm_enabled
   encryption_at_host_enabled = each.value.encryption_at_host_enabled
 
-  identity {
-    type         = each.value.identity.type
-    identity_ids = each.value.identity.identity_ids
+  # Flexible identity: SystemAssigned (the default), UserAssigned, both, or None (no block at all).
+  dynamic "identity" {
+    for_each = each.value.identity.type != "None" ? [each.value.identity] : []
+    content {
+      type         = identity.value.type
+      identity_ids = identity.value.identity_ids
+    }
   }
 
   dynamic "boot_diagnostics" {
@@ -152,7 +156,7 @@ resource "azurerm_linux_virtual_machine" "this" {
 
   license_type         = each.value.license_type
   user_data            = each.value.user_data
-  custom_data          = each.value.custom_data
+  custom_data          = local.effective_custom_data[each.key]
   computer_name        = each.value.computer_name
   disk_controller_type = each.value.disk_controller_type
 
@@ -202,8 +206,8 @@ resource "azurerm_linux_virtual_machine" "this" {
       error_message = "VM \"${each.key}\": source_image_simple must be one of the catalog keys: ${join(", ", sort(keys(local.image_catalog)))}."
     }
     precondition {
-      condition     = local.vm_insights_enabled ? each.value.identity.type != null : true
-      error_message = "VM \"${each.key}\": vm_insights needs a managed identity on the VM (the default SystemAssigned identity satisfies this)."
+      condition     = local.vm_insights_enabled && each.value.monitor_agent_enabled ? each.value.identity.type != "None" : true
+      error_message = "VM \"${each.key}\": vm_insights needs a managed identity on the VM (the default SystemAssigned identity satisfies this); set monitor_agent_enabled = false to exclude an identity-less VM."
     }
   }
 }

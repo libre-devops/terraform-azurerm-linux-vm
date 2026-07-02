@@ -51,8 +51,9 @@ vtpm_enabled true; the image catalog entries are all Gen2 and Trusted Launch cap
 system-assigned managed identity, managed boot diagnostics, and platform patch assessment.
 
 IMAGE SELECTION, exactly one of:
-- source_image_simple: a friendly catalog key (Ubuntu2204, Ubuntu2404, Debian12, RHEL9; see the
-  image_catalog_keys output), verified Gen2/Trusted Launch marketplace references.
+- source_image_simple: a friendly catalog key (Ubuntu2204, Ubuntu2404, Debian12, RHEL9, Sles15,
+  Rocky9; see the image_catalog_keys output), verified Gen2/Trusted Launch marketplace references.
+  Rocky carries its marketplace plan automatically (accept with accept_marketplace_agreement).
 - source_image_reference: { publisher, offer, sku, version (default latest) } for anything else.
 - source_image_id: a custom or gallery image id.
 Marketplace plan images: set plan { name, product, publisher } and optionally
@@ -71,13 +72,23 @@ encryption set, zone follows the VM).
 EVERYTHING ELSE: zone, availability_set_id, virtual_machine_scale_set_id, proximity_placement_group_id,
 capacity_reservation_group_id, dedicated_host_id / dedicated_host_group_id, platform_fault_domain,
 edge_zone; spot { max_bid_price, eviction_policy }; additional_capabilities (ultra SSD, hibernation);
-encryption_at_host_enabled (subscription feature-gated, so opt-in); identity overrides; patching
+encryption_at_host_enabled (subscription feature-gated; see resource_provider_feature_registrations
+for the often-forgotten registration); identity (SystemAssigned by default, UserAssigned, both as
+"SystemAssigned, UserAssigned", or None for no identity at all); patching
 (patch_mode default ImageDefault, patch_assessment_mode default AutomaticByPlatform, reboot_setting,
 bypass flag); license_type; user_data / custom_data; computer_name (defaults from the VM name);
 disk_controller_type; extensions_time_budget; gallery_applications; secrets (key vault certificates);
 termination_notification; os_image_notification; boot_diagnostics_storage_account_uri (unset =
 managed storage); run_command { script | script_uri | command_id, run_as_user, run_as_password };
-monitor_agent_enabled (default true, only relevant when vm_insights is set) and per-VM tags.
+cloud_init (plain cloud-init YAML, base64-encoded for you; mutually exclusive with custom_data,
+which passes through pre-encoded); monitor_agent_enabled (default true, only relevant when
+vm_insights is set) and per-VM tags.
+
+PROVIDER DISCLAIMERS worth knowing: the OS disk is deleted with the VM by default (configurable via
+the provider features block); all arguments including admin credentials are stored in the raw state
+as plain text (protect the state); unmanaged disks and attaching existing OS disks are not supported
+by azurerm_linux_virtual_machine; and public_ip_address outputs may be unpopulated for Dynamic
+public IPs.
 DESC
 
   type = map(object({
@@ -183,6 +194,7 @@ DESC
     license_type         = optional(string)
     user_data            = optional(string)
     custom_data          = optional(string)
+    cloud_init           = optional(string)
     computer_name        = optional(string)
     disk_controller_type = optional(string)
 
@@ -241,6 +253,16 @@ DESC
   validation {
     condition     = alltrue([for v in values(var.linux_virtual_machines) : contains(["None", "ReadOnly", "ReadWrite"], v.os_disk.caching)])
     error_message = "os_disk.caching must be None, ReadOnly, or ReadWrite."
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.linux_virtual_machines) : contains(["SystemAssigned", "UserAssigned", "SystemAssigned, UserAssigned", "None"], v.identity.type)])
+    error_message = "identity.type must be SystemAssigned, UserAssigned, \"SystemAssigned, UserAssigned\", or None."
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.linux_virtual_machines) : !(v.cloud_init != null && v.custom_data != null)])
+    error_message = "cloud_init and custom_data are mutually exclusive (cloud_init is base64-encoded for you; custom_data passes through)."
   }
 
   validation {

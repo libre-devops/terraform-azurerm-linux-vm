@@ -96,8 +96,10 @@ module "private_dns" {
 
   private_dns_zones = {
     "corp.internal" = {
+      # Same key as the default link below, so this REPLACES it for corp.internal (a zone may hold
+      # only one link per vnet, and only one zone per vnet may auto-register).
       vnet_links = {
-        vnet-registration = {
+        vnet-link = {
           virtual_network_id   = module.network.vnet_id
           registration_enabled = true
         }
@@ -107,8 +109,9 @@ module "private_dns" {
 
   reverse_dns_zone_cidrs = ["10.0.0.0/16"]
 
+  # Resolution-only links for every zone (the reverse zones included).
   default_vnet_links = {
-    vnet-resolution = {
+    vnet-link = {
       virtual_network_id = module.network.vnet_id
     }
   }
