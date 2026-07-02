@@ -49,7 +49,7 @@ module "linux_vm" {
 
   linux_virtual_machines = {
     (local.vm_name) = {
-      size                = "Standard_B2s"
+      size                = "Standard_D2lds_v6"
       admin_username      = "azureuser"
       source_image_simple = "Ubuntu2404"
       subnet_id           = module.network.subnet_ids["snet-app-${local.vnet_name}"]

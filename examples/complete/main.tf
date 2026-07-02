@@ -183,7 +183,7 @@ module "linux_vm" {
   linux_virtual_machines = {
     # The app VM: catalog image, data disks with auto LUNs, a run command proving the box is alive.
     (local.vm_app) = {
-      size                = "Standard_B2s"
+      size                = "Standard_D2lds_v6"
       admin_username      = "azureuser"
       source_image_simple = "Ubuntu2404"
       subnet_id           = module.network.subnet_ids["snet-app-${local.vnet_name}"]
@@ -205,7 +205,7 @@ module "linux_vm" {
 
     # The worker: explicit image reference, spot pricing, a static private IP, and a zone.
     (local.vm_worker) = {
-      size           = "Standard_D2s_v5"
+      size           = "Standard_D2lds_v6"
       admin_username = "azureuser"
       source_image_reference = {
         publisher = "Canonical"
