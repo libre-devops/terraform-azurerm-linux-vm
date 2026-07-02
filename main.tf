@@ -239,9 +239,13 @@ resource "azurerm_virtual_machine_data_disk_attachment" "data" {
   caching            = each.value.disk.caching
 }
 
-# Modern run commands (one optional command per VM), executed once the VM exists.
+# Modern run commands (one optional command per VM), executed once the VM exists. Serialized after
+# the monitor agent: concurrent VM operations preempt each other (OperationPreempted), so the run
+# command must not race the extension install.
 resource "azurerm_virtual_machine_run_command" "this" {
   for_each = local.run_commands
+
+  depends_on = [azurerm_virtual_machine_extension.monitor_agent]
 
   location           = var.location
   tags               = var.tags
