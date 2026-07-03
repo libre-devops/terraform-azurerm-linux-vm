@@ -1,0 +1,8 @@
+# Waiver for the action's per-stack trivy gate (Invoke-LdoTrivy picks this up from the scanned
+# folder). Mirrors the repo-root .trivyignore.yaml and the README's exceptions table.
+misconfigurations:
+  - id: AVD-AZU-0013
+    statement: >-
+      The complete example's DISPOSABLE vault deliberately opts out of the keyvault module's
+      deny-by-default firewall so the CI runner can reach the data plane during the self-test.
+      Real deployments keep the module's secure default.
