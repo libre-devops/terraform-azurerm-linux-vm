@@ -2,7 +2,7 @@ locals {
   location  = lookup(var.regions, var.loc, "uksouth")
   rg_name   = "rg-${var.short}-${var.loc}-${terraform.workspace}-001"
   vnet_name = "vnet-${var.short}-${var.loc}-${terraform.workspace}-001"
-  vm_name   = "vm-${var.short}-${var.loc}-${terraform.workspace}-001"
+  vm_name   = "vm-app-${var.short}-${var.loc}-${terraform.workspace}-001"
 }
 
 module "tags" {
