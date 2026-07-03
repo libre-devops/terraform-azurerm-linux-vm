@@ -16,7 +16,7 @@
 
 The "secure VM estate in a pinch" build, end to end: tags, resource group, vnet, forward AND reverse
 private DNS zones auto-registering every VM, a free Developer bastion as the only door (no public IPs
-anywhere), a firewalled key vault holding ephemerally generated SSH keys (both halves written
+anywhere), an NSG on the VM subnet admitting SSH only from inside the vnet, a firewalled key vault holding ephemerally generated SSH keys (both halves written
 write-only, the private key never touches Terraform state), Log Analytics with VM Insights wired to
 every VM through their system identities, and two hardened VMs exercising the full surface: a catalog
 image with data disks (auto LUNs) and a run command, and an explicit image reference with spot

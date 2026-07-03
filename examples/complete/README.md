@@ -16,7 +16,7 @@
 
 The "secure VM estate in a pinch" build, end to end: tags, resource group, vnet, forward AND reverse
 private DNS zones auto-registering every VM, a free Developer bastion as the only door (no public IPs
-anywhere), a firewalled key vault holding ephemerally generated SSH keys (both halves written
+anywhere), an NSG on the VM subnet admitting SSH only from inside the vnet, a firewalled key vault holding ephemerally generated SSH keys (both halves written
 write-only, the private key never touches Terraform state), Log Analytics with VM Insights wired to
 every VM through their system identities, and two hardened VMs exercising the full surface: a catalog
 image with data disks (auto LUNs) and a run command, and an explicit image reference with spot
@@ -36,6 +36,7 @@ locals {
   location  = lookup(var.regions, var.loc, "uksouth")
   rg_name   = "rg-${var.short}-${var.loc}-${terraform.workspace}-002"
   vnet_name = "vnet-${var.short}-${var.loc}-${terraform.workspace}-002"
+  nsg_name  = "nsg-${var.short}-${var.loc}-${terraform.workspace}-002"
   kv_name   = "kv-${var.short}-${var.loc}-${terraform.workspace}-002"
   law_name  = "log-${var.short}-${var.loc}-${terraform.workspace}-002"
   bas_name  = "bas-${var.short}-${var.loc}-${terraform.workspace}-002"
@@ -83,6 +84,37 @@ module "network" {
   address_space = ["10.0.0.0/16"]
   subnets = {
     "snet-app-${local.vnet_name}" = { address_prefixes = ["10.0.1.0/24"] }
+  }
+}
+
+# The VM subnet's NSG: the module's secure defaults (an explicit inbound deny plus curated outbound
+# allows) with SSH admitted only from inside the vnet, which is where the bastion lives.
+module "nsg" {
+  source  = "libre-devops/nsg/azurerm"
+  version = "~> 4.0"
+
+  resource_group_id = module.rg.ids[local.rg_name]
+  location          = local.location
+  tags              = module.tags.tags
+
+  name = local.nsg_name
+
+  security_rules = {
+    allow-vnet-ssh-inbound = {
+      priority                   = 200
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      description                = "SSH from inside the vnet only (the bastion's path)."
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = "VirtualNetwork"
+      destination_address_prefix = "VirtualNetwork"
+    }
+  }
+
+  subnet_associations = {
+    "snet-app-${local.vnet_name}" = module.network.subnet_ids["snet-app-${local.vnet_name}"]
   }
 }
 
@@ -293,6 +325,7 @@ module "linux_vm" {
 | <a name="module_linux_vm"></a> [linux\_vm](#module\_linux\_vm) | ../../ | n/a |
 | <a name="module_log_analytics"></a> [log\_analytics](#module\_log\_analytics) | libre-devops/log-analytics-workspace/azurerm | ~> 4.0 |
 | <a name="module_network"></a> [network](#module\_network) | libre-devops/network/azurerm | ~> 4.0 |
+| <a name="module_nsg"></a> [nsg](#module\_nsg) | libre-devops/nsg/azurerm | ~> 4.0 |
 | <a name="module_private_dns"></a> [private\_dns](#module\_private\_dns) | libre-devops/private-dns-zone/azurerm | ~> 4.0 |
 | <a name="module_rg"></a> [rg](#module\_rg) | libre-devops/rg/azurerm | ~> 4.0 |
 | <a name="module_runner_ip"></a> [runner\_ip](#module\_runner\_ip) | libre-devops/get-ip-address/external | ~> 4.0 |
