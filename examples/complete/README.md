@@ -187,7 +187,10 @@ module "keyvault" {
       #   bypass         = "AzureServices"
       #   ip_rules       = ["<your egress ip>/32"]
       # }
-      network_acls = null
+      #
+      # NOTE: an explicit "network_acls = null" would NOT opt out: optional() replaces an explicit
+      # null with the secure default. Allow is the expressible opt-out.
+      network_acls = { default_action = "Allow" }
       access_policies = [
         {
           object_id          = data.azurerm_client_config.current.object_id
