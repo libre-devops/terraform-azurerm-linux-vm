@@ -136,8 +136,9 @@ finding that should be fixed. Waivers live in [`.trivyignore.yaml`](./.trivyigno
 machine-applied source of truth, passed to Trivy with `--ignorefile`) and are mirrored in a table
 here so the reason is auditable.
 
-There are currently **no exceptions**: the module and its examples scan clean. The module's whole
-point is that the hardened shape is the default shape, so there is nothing to waive.
+| ID | Scope | Reason |
+| --- | --- | --- |
+| AVD-AZU-0013 (vault network ACL default action) | `examples/complete/main.tf` | The disposable example vault opts out of the keyvault module's deny-by-default firewall so the CI self-test runner can reach the data plane; real deployments keep the secure default, and the firewalled shape plus the terraform-azure action's key vault dance are documented alongside. |
 
 To add an exception: add an entry to `.trivyignore.yaml` (`id`, optional `paths` to scope it, and a
 `statement` recording why), then add a matching row here recording the reason. Both the file and

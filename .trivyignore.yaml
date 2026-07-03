@@ -1,1 +1,14 @@
-misconfigurations: []
+# Trivy waivers: machine-applied source of truth (passed with --ignorefile), mirrored in the README's
+# "Security scan exceptions" table so every waiver is auditable.
+misconfigurations:
+  - id: AVD-AZU-0013
+    # Trivy reports the finding through the example's module cache with the module address prefixed,
+    # hence the leading glob.
+    paths:
+      - "**/examples/complete/**"
+    statement: >-
+      The complete example's DISPOSABLE vault deliberately opts out of the keyvault module's
+      deny-by-default firewall (default_action = Allow) so the CI runner can reach the data plane
+      during the self-test without per-run IP allow-listing. Real deployments keep the module's
+      secure default; the example documents the firewalled shape and the terraform-azure action's
+      key vault dance inputs alongside.
