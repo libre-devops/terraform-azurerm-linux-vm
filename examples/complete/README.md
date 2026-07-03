@@ -16,7 +16,7 @@
 
 The "secure VM estate in a pinch" build, end to end: tags, resource group, vnet, forward AND reverse
 private DNS zones auto-registering every VM, a free Developer bastion as the only door (no public IPs
-anywhere), an NSG on the VM subnet admitting SSH only from inside the vnet, a firewalled key vault holding ephemerally generated SSH keys (both halves written
+anywhere), an NSG on the VM subnet admitting SSH only from inside the vnet, a key vault holding ephemerally generated SSH keys (both halves written
 write-only, the private key never touches Terraform state), Log Analytics with VM Insights wired to
 every VM through their system identities, and two hardened VMs exercising the full surface: a catalog
 image with data disks (auto LUNs) and a run command, and an explicit image reference with spot
@@ -46,13 +46,6 @@ locals {
 }
 
 data "azurerm_client_config" "current" {}
-
-# The runner's public egress IP, allow-listed on the vault firewall (this subscription enforces
-# default-deny network rules on key vaults).
-module "runner_ip" {
-  source  = "libre-devops/get-ip-address/external"
-  version = "~> 4.0"
-}
 
 module "tags" {
   source  = "libre-devops/tags/azurerm"
@@ -182,11 +175,19 @@ module "keyvault" {
     (local.kv_name) = {
       rbac_authorization_enabled = false
       purge_protection_enabled   = false
-      network_acls = {
-        default_action = "Deny"
-        bypass         = "AzureServices"
-        ip_rules       = ["${module.runner_ip.public_ip_address}/32"]
-      }
+
+      # The keyvault module firewalls vaults by default (deny with AzureServices bypass). This
+      # DISPOSABLE example vault opts out so the CI runner can reach the data plane without
+      # per-run IP allow-listing. For a real, firewalled vault either keep the default and
+      # allow-list your egress IP as below, or let the terraform-azure action do the dance for
+      # you (add-current-ip-to-key-vault-before-tf-run + firewall-key-vault-name inputs).
+      #
+      # network_acls = {
+      #   default_action = "Deny"
+      #   bypass         = "AzureServices"
+      #   ip_rules       = ["<your egress ip>/32"]
+      # }
+      network_acls = null
       access_policies = [
         {
           object_id          = data.azurerm_client_config.current.object_id
@@ -194,15 +195,6 @@ module "keyvault" {
         }
       ]
     }
-  }
-}
-
-resource "time_sleep" "kv_firewall" {
-  create_duration = "60s"
-
-  triggers = {
-    vault = module.keyvault.ids[local.kv_name]
-    ip    = module.runner_ip.public_ip_address
   }
 }
 
@@ -221,7 +213,6 @@ module "ssh_key" {
     (local.ssh_key) = {}
   }
 
-  depends_on = [time_sleep.kv_firewall]
 }
 
 # Observability: Log Analytics backing VM Insights for every VM below.
@@ -307,14 +298,12 @@ module "linux_vm" {
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.11.0, < 2.0.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.23.0, < 5.0.0 |
-| <a name="requirement_time"></a> [time](#requirement\_time) | >= 0.9.0, < 1.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 4.23.0, < 5.0.0 |
-| <a name="provider_time"></a> [time](#provider\_time) | >= 0.9.0, < 1.0.0 |
 
 ## Modules
 
@@ -328,7 +317,6 @@ module "linux_vm" {
 | <a name="module_nsg"></a> [nsg](#module\_nsg) | libre-devops/nsg/azurerm | ~> 4.0 |
 | <a name="module_private_dns"></a> [private\_dns](#module\_private\_dns) | libre-devops/private-dns-zone/azurerm | ~> 4.0 |
 | <a name="module_rg"></a> [rg](#module\_rg) | libre-devops/rg/azurerm | ~> 4.0 |
-| <a name="module_runner_ip"></a> [runner\_ip](#module\_runner\_ip) | libre-devops/get-ip-address/external | ~> 4.0 |
 | <a name="module_ssh_key"></a> [ssh\_key](#module\_ssh\_key) | libre-devops/ssh-key/azurerm | ~> 4.0 |
 | <a name="module_tags"></a> [tags](#module\_tags) | libre-devops/tags/azurerm | ~> 4.0 |
 
@@ -336,7 +324,6 @@ module "linux_vm" {
 
 | Name | Type |
 |------|------|
-| [time_sleep.kv_firewall](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) | resource |
 | [azurerm_client_config.current](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
 
 ## Inputs

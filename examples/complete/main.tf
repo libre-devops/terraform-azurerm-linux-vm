@@ -16,13 +16,6 @@ locals {
 
 data "azurerm_client_config" "current" {}
 
-# The runner's public egress IP, allow-listed on the vault firewall (this subscription enforces
-# default-deny network rules on key vaults).
-module "runner_ip" {
-  source  = "libre-devops/get-ip-address/external"
-  version = "~> 4.0"
-}
-
 module "tags" {
   source  = "libre-devops/tags/azurerm"
   version = "~> 4.0"
@@ -151,11 +144,19 @@ module "keyvault" {
     (local.kv_name) = {
       rbac_authorization_enabled = false
       purge_protection_enabled   = false
-      network_acls = {
-        default_action = "Deny"
-        bypass         = "AzureServices"
-        ip_rules       = ["${module.runner_ip.public_ip_address}/32"]
-      }
+
+      # The keyvault module firewalls vaults by default (deny with AzureServices bypass). This
+      # DISPOSABLE example vault opts out so the CI runner can reach the data plane without
+      # per-run IP allow-listing. For a real, firewalled vault either keep the default and
+      # allow-list your egress IP as below, or let the terraform-azure action do the dance for
+      # you (add-current-ip-to-key-vault-before-tf-run + firewall-key-vault-name inputs).
+      #
+      # network_acls = {
+      #   default_action = "Deny"
+      #   bypass         = "AzureServices"
+      #   ip_rules       = ["<your egress ip>/32"]
+      # }
+      network_acls = null
       access_policies = [
         {
           object_id          = data.azurerm_client_config.current.object_id
@@ -163,15 +164,6 @@ module "keyvault" {
         }
       ]
     }
-  }
-}
-
-resource "time_sleep" "kv_firewall" {
-  create_duration = "60s"
-
-  triggers = {
-    vault = module.keyvault.ids[local.kv_name]
-    ip    = module.runner_ip.public_ip_address
   }
 }
 
@@ -190,7 +182,6 @@ module "ssh_key" {
     (local.ssh_key) = {}
   }
 
-  depends_on = [time_sleep.kv_firewall]
 }
 
 # Observability: Log Analytics backing VM Insights for every VM below.
