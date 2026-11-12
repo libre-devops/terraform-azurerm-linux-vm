@@ -89,5 +89,11 @@ locals {
   vm_insights_enabled = var.vm_insights != null
   monitored_vms       = local.vm_insights_enabled ? { for k, v in var.linux_virtual_machines : k => v if v.monitor_agent_enabled && v.identity.type != "None" } : {}
   create_dcr          = local.vm_insights_enabled && try(var.vm_insights.data_collection_rule_id, null) == null
-  effective_dcr_id    = local.create_dcr ? azurerm_monitor_data_collection_rule.vm_insights[0].id : try(var.vm_insights.data_collection_rule_id, null)
+
+  # The created DCR's name carries the OS, so a windows-vm and a linux-vm call in one resource group
+  # no longer collide on dcr-vminsights-<rg> (a 409 Conflict). Two calls of the same OS in one group
+  # need distinct data_collection_rule_name values, or share one DCR through data_collection_rule_id.
+  dcr_name = coalesce(try(var.vm_insights.data_collection_rule_name, null), "dcr-vminsights-linux-${local.rg_name}")
+
+  effective_dcr_id = local.create_dcr ? azurerm_monitor_data_collection_rule.vm_insights[0].id : try(var.vm_insights.data_collection_rule_id, null)
 }

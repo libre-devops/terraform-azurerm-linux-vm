@@ -8,7 +8,7 @@ resource "azurerm_monitor_data_collection_rule" "vm_insights" {
   resource_group_name = local.rg_name
   location            = var.location
   tags                = var.tags
-  name                = "dcr-vminsights-${local.rg_name}"
+  name                = local.dcr_name
   description         = "VM Insights performance counters, shipped to Log Analytics."
 
   destinations {
@@ -30,6 +30,14 @@ resource "azurerm_monitor_data_collection_rule" "vm_insights" {
   data_flow {
     streams      = ["Microsoft-InsightsMetrics"]
     destinations = ["vminsights-law"]
+  }
+
+  # Replace by creating the new rule first: Azure refuses to delete a rule that still has
+  # associations (ExistingAssociationsPreventDelete), so a rename (a data_collection_rule_name
+  # change, or the OS-qualified default name arriving on upgrade) must re-point the associations,
+  # which update in place, before the old rule is deleted. Verified live.
+  lifecycle {
+    create_before_destroy = true
   }
 }
 

@@ -222,6 +222,11 @@ run "vm_insights_created" {
     condition     = length(azurerm_monitor_data_collection_rule_association.vm_insights) == 1
     error_message = "The DCR association should follow the agent."
   }
+
+  assert {
+    condition     = azurerm_monitor_data_collection_rule.vm_insights[0].name == "dcr-vminsights-linux-${provider::azurerm::parse_resource_id(var.resource_group_id).resource_group_name}"
+    error_message = "The created DCR's name should carry the OS, so windows-vm and linux-vm calls in one resource group do not collide."
+  }
 }
 
 # An existing DCR id is associated without creating a new rule.
@@ -451,4 +456,53 @@ run "flags_encryption_at_host_without_feature" {
   }
 
   expect_failures = [check.encryption_at_host_feature_reminder]
+}
+
+# data_collection_rule_name overrides the created DCR's name (two linux calls in one resource group).
+run "vm_insights_dcr_name_override" {
+  command = apply
+
+  variables {
+    vm_insights = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.OperationalInsights/workspaces/log-t"
+      data_collection_rule_name  = "dcr-vminsights-linux-app"
+    }
+    linux_virtual_machines = {
+      "vm-mon" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        admin_ssh_keys      = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_monitor_data_collection_rule.vm_insights[0].name == "dcr-vminsights-linux-app"
+    error_message = "data_collection_rule_name should name the created DCR."
+  }
+}
+
+# A DCR name alongside an existing DCR id does nothing, so it is rejected rather than ignored.
+run "rejects_dcr_name_with_existing_dcr" {
+  command = plan
+
+  variables {
+    vm_insights = {
+      data_collection_rule_id   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Insights/dataCollectionRules/dcr-existing"
+      data_collection_rule_name = "dcr-unused"
+    }
+    linux_virtual_machines = {
+      "vm-mon" = {
+        size                = "Standard_B2s"
+        admin_username      = "azureuser"
+        source_image_simple = "Ubuntu2404"
+        subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-t/providers/Microsoft.Network/virtualNetworks/vnet-t/subnets/snet"
+        admin_ssh_keys      = [{ public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtbmPhzCR+ZpI/Y4H1IvPEI+tvGT4R5ReLtj5QZVcRXJiRdIbYsb6sjaYu8JcR6vzSHAlJcx0zmcSP4SR7HqtuXbODv+OvVpBCoil9LWbCfOgOQ6XZ3oSFYe8lFllbFLiM7I+ok+s7Cygnu58fil7pDdBFrS7DZRjvT87RrOX0dp2LDNNN7LYFy5nwHvkBv9z36q9RFGcP4e0XDNtU0+LGnolz4oDWkJt/0POaHIxnJJX7ge0r0bReZq/t1XRr/RrhPYk6gkWsSkfbwwxGPA2UdxFRDVn2aMx6Hz8gQfcHRS2kEvKRMIgQfBOmB6OInLCLaUZRWm5YdEBZXwtdREor example" }]
+      }
+    }
+  }
+
+  expect_failures = [var.vm_insights]
 }

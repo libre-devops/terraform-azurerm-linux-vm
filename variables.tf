@@ -26,17 +26,28 @@ system-assigned identity is what the agent authenticates with, which the module 
 creates the VM Insights data collection rule pointed at log_analytics_workspace_id (or associates an
 existing one passed as data_collection_rule_id), and associates every VM with it. null (the default)
 creates nothing.
+
+The created rule is named dcr-vminsights-linux-<resource group> unless data_collection_rule_name
+says otherwise, so a windows-vm and a linux-vm call in one resource group each get their own. Two
+calls of the same OS in one resource group need distinct names, or better, one shared rule: the VM
+Insights rule is OS-agnostic, so pass one call's data_collection_rule_id output to the others.
 DESC
 
   type = object({
     log_analytics_workspace_id = optional(string)
     data_collection_rule_id    = optional(string)
+    data_collection_rule_name  = optional(string)
   })
   default = null
 
   validation {
     condition     = var.vm_insights == null || length([for v in [try(var.vm_insights.log_analytics_workspace_id, null), try(var.vm_insights.data_collection_rule_id, null)] : v if v != null]) == 1
     error_message = "vm_insights must set exactly one of log_analytics_workspace_id (the module creates the VM Insights DCR) or data_collection_rule_id (an existing DCR)."
+  }
+
+  validation {
+    condition     = var.vm_insights == null || try(var.vm_insights.data_collection_rule_name, null) == null || try(var.vm_insights.log_analytics_workspace_id, null) != null
+    error_message = "vm_insights.data_collection_rule_name names the DCR the module creates, so it needs log_analytics_workspace_id (an existing data_collection_rule_id is used as-is)."
   }
 }
 

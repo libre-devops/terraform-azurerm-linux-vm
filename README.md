@@ -45,7 +45,10 @@ first-class, and marketplace `plan` images get their `azurerm_marketplace_agreem
 **VM Insights in one attribute**: `vm_insights = { log_analytics_workspace_id = ... }` installs the
 Azure Monitor agent on every VM (per-VM opt-out), creates the VM Insights data collection rule (or
 associates an existing `data_collection_rule_id`), and associates each VM, using the VMs' managed
-identities.
+identities. The created rule is named `dcr-vminsights-linux-<resource group>` (override with
+`data_collection_rule_name`), so windows-vm and linux-vm calls in one resource group no longer
+collide on it; the rule is OS-agnostic, so sharing one through `data_collection_rule_id` is the
+leanest shape when several calls send to the same workspace.
 
 **The rest of the surface**: flexible identity (SystemAssigned by default, UserAssigned, both, or
 None), a `cloud_init` convenience that base64-encodes plain cloud-init YAML for you (the
@@ -193,7 +196,7 @@ No modules.
 | <a name="input_resource_provider_feature_registrations"></a> [resource\_provider\_feature\_registrations](#input\_resource\_provider\_feature\_registrations) | Preview/opt-in features to register, as "Namespace/FeatureName" strings (for example<br/>"Microsoft.Compute/EncryptionAtHost", the classic forgotten prerequisite for<br/>encryption\_at\_host\_enabled). Empty (the default) manages nothing. Registration is subscription-wide<br/>and can take several minutes to propagate. | `set(string)` | `[]` | no |
 | <a name="input_resource_provider_registrations"></a> [resource\_provider\_registrations](#input\_resource\_provider\_registrations) | Resource provider namespaces to register on the subscription (for example Microsoft.Monitor), for<br/>subscriptions where the provider has never been used. Empty (the default) manages nothing. NOTE: a<br/>namespace already registered elsewhere will conflict on import/destroy; this is for the deliberate<br/>owner only, and the provider's own resource\_provider\_registrations setting must not also manage it. | `set(string)` | `[]` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to every resource this module creates (merged with any per-VM tags). | `map(string)` | `{}` | no |
-| <a name="input_vm_insights"></a> [vm\_insights](#input\_vm\_insights) | Opt-in VM Insights for every VM in this call: the module installs the Azure Monitor agent (each VM's<br/>system-assigned identity is what the agent authenticates with, which the module enables by default),<br/>creates the VM Insights data collection rule pointed at log\_analytics\_workspace\_id (or associates an<br/>existing one passed as data\_collection\_rule\_id), and associates every VM with it. null (the default)<br/>creates nothing. | <pre>object({<br/>    log_analytics_workspace_id = optional(string)<br/>    data_collection_rule_id    = optional(string)<br/>  })</pre> | `null` | no |
+| <a name="input_vm_insights"></a> [vm\_insights](#input\_vm\_insights) | Opt-in VM Insights for every VM in this call: the module installs the Azure Monitor agent (each VM's<br/>system-assigned identity is what the agent authenticates with, which the module enables by default),<br/>creates the VM Insights data collection rule pointed at log\_analytics\_workspace\_id (or associates an<br/>existing one passed as data\_collection\_rule\_id), and associates every VM with it. null (the default)<br/>creates nothing.<br/><br/>The created rule is named dcr-vminsights-linux-<resource group> unless data\_collection\_rule\_name<br/>says otherwise, so a windows-vm and a linux-vm call in one resource group each get their own. Two<br/>calls of the same OS in one resource group need distinct names, or better, one shared rule: the VM<br/>Insights rule is OS-agnostic, so pass one call's data\_collection\_rule\_id output to the others. | <pre>object({<br/>    log_analytics_workspace_id = optional(string)<br/>    data_collection_rule_id    = optional(string)<br/>    data_collection_rule_name  = optional(string)<br/>  })</pre> | `null` | no |
 
 ## Outputs
 

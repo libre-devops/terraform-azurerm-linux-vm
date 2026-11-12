@@ -45,7 +45,10 @@ first-class, and marketplace `plan` images get their `azurerm_marketplace_agreem
 **VM Insights in one attribute**: `vm_insights = { log_analytics_workspace_id = ... }` installs the
 Azure Monitor agent on every VM (per-VM opt-out), creates the VM Insights data collection rule (or
 associates an existing `data_collection_rule_id`), and associates each VM, using the VMs' managed
-identities.
+identities. The created rule is named `dcr-vminsights-linux-<resource group>` (override with
+`data_collection_rule_name`), so windows-vm and linux-vm calls in one resource group no longer
+collide on it; the rule is OS-agnostic, so sharing one through `data_collection_rule_id` is the
+leanest shape when several calls send to the same workspace.
 
 **The rest of the surface**: flexible identity (SystemAssigned by default, UserAssigned, both, or
 None), a `cloud_init` convenience that base64-encodes plain cloud-init YAML for you (the
